@@ -44,3 +44,67 @@ test('the duck must be rescued before docking can finish the run', () => {
   assert.equal(run.rescued, true);
   assert.equal(run.finished, true);
 });
+
+test('practice waits for each player to try one paddle before allowing forward motion', () => {
+  const run = createRiverRun('practice');
+  paddle(run, 20, true, true);
+  assert.equal(run.x, 105);
+  paddle(run, 8, true, false);
+  assert.deepEqual(run.practice, [true, false]);
+  assert.ok(run.heading > 0);
+  paddle(run, 5, false, true);
+  assert.deepEqual(run.practice, [true, true]);
+  assert.equal(run.heading, 0);
+  paddle(run, 18, false, true);
+  assert.ok(run.heading < -0.45);
+  paddle(run, 140, true, true);
+  assert.ok(run.finished);
+  assert.equal(run.collisions, 0);
+});
+
+test('brief staggered inputs from one paired stroke are not two solo practices', () => {
+  const run = createRiverRun('practice');
+  paddle(run, 1, true, false);
+  paddle(run, 12, true, true);
+  paddle(run, 1, false, true);
+  paddle(run, 1, false, false);
+  assert.deepEqual(run.practice, [false, false]);
+  assert.equal(run.x, 105);
+});
+
+test('fog waits for both clues, then rejects the shoal and saves the safe crossing', () => {
+  const run = createRiverRun('fog', { flag: 'triangle', channel: 'upper' });
+  run.fog!.shared[0] = true;
+  paddle(run, 100, true, true);
+  assert.equal(run.x, 345);
+  assert.equal(run.collisions, 0);
+  run.fog!.shared[1] = true;
+  paddle(run, 13, true, true);
+  assert.equal(run.recovery, 'shoal');
+  assert.equal(run.x, 325);
+  paddle(run, 25, false, false);
+  run.y = 122;
+  paddle(run, 55, true, true);
+  assert.equal(run.pastFog, true);
+  assert.equal(run.recovery, null);
+  assert.equal(run.collisions, 1);
+});
+
+test('the other fog flag gives recoverable feedback and only the correct flag has the duck', () => {
+  const run = createRiverRun('fog', { flag: 'circle', channel: 'upper' });
+  run.fog!.shared = [true, true];
+  run.pastFog = true;
+  run.x = 720;
+  run.y = 122;
+  paddle(run, 25, true, true);
+  assert.ok(run.wrongFlag);
+  assert.equal(run.rescued, false);
+  assert.equal(run.finished, false);
+  run.y = 278;
+  paddle(run, 1, true, true);
+  assert.ok(run.rescued);
+  assert.equal(run.wrongFlag, false);
+  run.y = 200;
+  paddle(run, 45, true, true);
+  assert.ok(run.finished);
+});

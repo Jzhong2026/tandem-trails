@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import type { Ack, Admission, ClientEvents, RoomError, RoomView, Seat, ServerEvents, Session } from '../shared/protocol.js';
+import type { RiverLevel } from '../shared/river-levels.js';
 
 const storageKey = 'tandem-trails.session';
 const timeoutMs = 4500;
@@ -15,6 +16,7 @@ const errorMessage: Record<RoomError, string> = {
   busy: '当前房间较多，请稍后再试。',
   'wrong-phase': '房间状态已改变，请根据当前页面继续。',
   'bad-request': '操作没有通过校验，请重试。',
+  'host-only': '请让房主在房间里选择关卡。',
 };
 
 function loadSession(): Session | null {
@@ -130,8 +132,12 @@ export function useRoom() {
     },
     create: () => command<Admission>(() => socket.timeout(timeoutMs).emitWithAck('room:create'), admit),
     join: (code: string) => command<Admission>(() => socket.timeout(timeoutMs).emitWithAck('room:join', code), admit),
-    ready: (ready: boolean) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:ready', ready), setRoom),
+    selectLevel: (level: RiverLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:select-level', level), setRoom),
+    ready: (ready: boolean, lobbyRevision: number) => command<RoomView>(() =>
+      socket.timeout(timeoutMs).emitWithAck('room:ready', ready, lobbyRevision), setRoom),
     replay: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:replay'), setRoom),
+    next: (level: RiverLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:next', level), setRoom),
+    shareClue: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('game:share-clue'), setRoom),
     leave: () => command<null>(() => socket.timeout(timeoutMs).emitWithAck('room:leave'), reset),
   };
 }

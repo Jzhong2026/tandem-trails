@@ -78,9 +78,11 @@ test('only admitted players can start, input leases expire and a returning playe
   const [host, guest, outsider] = await Promise.all([connect(), connect(), connect()]);
   const first = await create(host);
   const second = accepted<Admission>(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
-  assert.deepEqual(await outsider.timeout(1000).emitWithAck('room:ready', true), { ok: false, error: 'not-member' });
-  assert.equal(accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true)).phase, 'lobby');
-  assert.equal(accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true)).phase, 'playing');
+  const bend = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'bend'));
+  const revision = bend.lobbyRevision;
+  assert.deepEqual(await outsider.timeout(1000).emitWithAck('room:ready', true, revision), { ok: false, error: 'not-member' });
+  assert.equal(accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true, revision)).phase, 'lobby');
+  assert.equal(accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, revision)).phase, 'playing');
 
   const advance = roomWhen(host, current => (current.run?.x ?? 0) > 126);
   host.emit('game:paddle', true);
@@ -128,4 +130,75 @@ test('an expired reservation closes the old room and allows a new invitation', a
     code: first.room.code, token: joined.token,
   }), { ok: false, error: 'expired' });
   assert.notEqual((await create(host)).room.code, first.room.code);
+});
+
+test('only the host selects a level and changing it clears both ready states', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  assert.equal(first.room.level, 'practice');
+  await guest.timeout(1000).emitWithAck('room:join', first.room.code);
+  accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true, first.room.lobbyRevision));
+  assert.deepEqual(await guest.timeout(1000).emitWithAck('room:select-level', 'fog'),
+    { ok: false, error: 'host-only' });
+
+  const update = roomWhen(guest, current => current.level === 'fog');
+  const changed = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'fog'));
+  assert.equal(changed.players.left?.ready, false);
+  assert.equal((await update).players.right?.ready, false);
+  assert.deepEqual(await guest.timeout(1000).emitWithAck('room:ready', true, first.room.lobbyRevision),
+    { ok: false, error: 'wrong-phase' });
+  assert.equal(changed.clues, null);
+});
+
+test('a ready request from an earlier visit to the same level cannot start a new round', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  await guest.timeout(1000).emitWithAck('room:join', first.room.code);
+  await host.timeout(1000).emitWithAck('room:select-level', 'bend');
+  const revisited = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'practice'));
+  assert.equal(revisited.level, 'practice');
+  assert.notEqual(revisited.lobbyRevision, first.room.lobbyRevision);
+  assert.deepEqual(await guest.timeout(1000).emitWithAck('room:ready', true, first.room.lobbyRevision),
+    { ok: false, error: 'wrong-phase' });
+  const after = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true, revisited.lobbyRevision));
+  assert.equal(after.phase, 'lobby');
+  assert.equal(after.players.right?.ready, false);
+});
+
+test('a fog clue is private until its owner shares it and the other seat sees only the authorized view on resume', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  const joined = accepted<Admission>(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
+  const fog = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'fog'));
+  const leftUpdate = roomWhen(host, current => current.phase === 'playing');
+  await host.timeout(1000).emitWithAck('room:ready', true, fog.lobbyRevision);
+  const right = accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, fog.lobbyRevision));
+  const left = await leftUpdate;
+  assert.equal(left.clues?.own.kind, 'flag');
+  assert.equal(right.clues?.own.kind, 'channel');
+  assert.equal(left.clues?.channel, null);
+  assert.equal(right.clues?.flag, null);
+  assert.equal(Object.hasOwn(left.run!, 'fog'), false);
+  assert.equal(Object.hasOwn(right.run!, 'fog'), false);
+  assert.deepEqual(Object.keys(left.clues!).sort(), ['channel', 'flag', 'own']);
+  assert.deepEqual(await host.timeout(1000).emitWithAck('room:select-level', 'bend'),
+    { ok: false, error: 'wrong-phase' });
+
+  const rightUpdate = roomWhen(guest, current => Boolean(current.clues?.flag));
+  const shared = accepted<RoomView>(await host.timeout(1000).emitWithAck('game:share-clue'));
+  const updated = await rightUpdate;
+  assert.deepEqual(updated.clues?.flag, left.clues?.own.value);
+  assert.equal(shared.clues?.channel, null);
+  const paused = roomWhen(host, current => current.phase === 'paused');
+  guest.disconnect();
+  await paused;
+  const reconnect = await connect();
+  const resumed = accepted<Admission>(await reconnect.timeout(1000).emitWithAck('room:resume', {
+    code: first.room.code, token: joined.token,
+  }));
+  assert.deepEqual(resumed.room.clues, updated.clues);
+  assert.equal(resumed.room.phase, 'playing');
 });

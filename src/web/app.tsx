@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { normalizeRoomCode, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
-import type { RoomView, Seat } from '../shared/protocol.js';
-import { RIVER } from '../shared/river.js';
+import type { FogClues, RoomView, Seat } from '../shared/protocol.js';
+import { nextRiverLevel, RIVER_COURSES, RIVER_ORDER } from '../shared/river-levels.js';
+import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import { PaddleButton } from './paddle-button.js';
 import { RiverCanvas } from './river-canvas.js';
 import { useRoom } from './use-room.js';
 
 type Game = ReturnType<typeof useRoom>;
 const seatName = { left: '左桨', right: '右桨' } as const;
+const flagName: Record<Flag, string> = { triangle: '▲ 三角旗', circle: '● 圆旗' };
+const channelName: Record<Channel, string> = { upper: '↑ 靠上岸的水路', lower: '↓ 靠下岸的水路' };
 
 export function App() {
   const game = useRoom();
@@ -36,7 +39,7 @@ export function App() {
         : <section className="home">
           <div className="home-copy">
             <h1>亲子协作<br />大冒险</h1>
-            <p className="home-description">和家人各掌一支桨。绕过浮木，把小鸭平安送回岸边。</p>
+            <p className="home-description">和家人各掌一支桨。一起练船、绕浮木，再循着线索到雾里救小鸭。</p>
             <button className="primary create-button" disabled={!online || game.busy} onClick={game.create}>创建房间</button>
             <form className="join-form" onSubmit={event => {
               event.preventDefault();
@@ -51,17 +54,17 @@ export function App() {
               </div>
             </form>
           </div>
-          <RiverCard />
+          <RiverCard level="bend" />
         </section>}
     </main>
   </div>;
 }
 
-function RiverCard() {
+function RiverCard({ level }: { level: RiverLevel }) {
   return <figure className="river-card">
-    <RiverCanvas />
+    <RiverCanvas level={level} />
     <figcaption>
-      <div><span className="chapter">双桨救援队</span><strong>浮木弯道</strong></div>
+      <div><span className="chapter">双桨救援队</span><strong>{RIVER_COURSES[level].title}</strong></div>
       <span className="player-count">2 人合作</span>
     </figcaption>
   </figure>;
@@ -95,6 +98,18 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
           ? '可选中链接手动复制，或直接分享房间码。' : '邀请链接已复制。'}</p>}
         {loopback && <p className="assist">另一台设备请打开终端里显示的 LAN 地址，再输入房间码。</p>}
       </div>
+      <div className="course-picker">
+        {seat === 'left' ? <label>
+          <span>关卡</span>
+          <select value={room.level} disabled={disabled}
+            onChange={event => void game.selectLevel(event.currentTarget.value as RiverLevel)}>
+            {RIVER_ORDER.map(level => <option key={level} value={level}>
+              {RIVER_COURSES[level].title}{room.completed.includes(level) ? ' · 已通关' : ''}
+            </option>)}
+          </select>
+        </label> : <p>本轮关卡 <strong>{RIVER_COURSES[room.level].title}</strong></p>}
+        <p className="assist">{RIVER_COURSES[room.level].summary}</p>
+      </div>
       <ul className="seats">
         {SEATS.map(key => {
           const player = room.players[key];
@@ -105,51 +120,62 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
         })}
       </ul>
       <div className="room-actions">
-        <button className="primary" disabled={disabled} onClick={() => game.ready(!ready)}>
+        <button className="primary" disabled={disabled} onClick={() => game.ready(!ready, room.lobbyRevision)}>
           {ready ? '取消准备' : '我准备好了'}
         </button>
         <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
       </div>
     </div>
-    <RiverCard />
+    <RiverCard level={room.level} />
   </section>;
 }
 
 function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Game }) {
   const run = room.run!;
   const other = seat === 'left' ? 'right' : 'left';
+  const course = RIVER_COURSES[room.level];
+  const next = nextRiverLevel(room.level);
+  const clues = room.clues;
   const disabled = game.connection !== 'online' || game.busy;
   const progress = room.phase === 'finished' ? 100 : Math.min(99, Math.round(
-    (run.x - RIVER.start.x) / (RIVER.dock.x - RIVER.start.x) * 100,
+    (run.x - course.start.x) / (course.dock.x - course.start.x) * 100,
   ));
 
   return <section className="stage">
     <div className="stage-title">
-      <div><span className="chapter">双桨救援队</span><h1>浮木弯道</h1></div>
+      <div><span className="chapter">双桨救援队</span><h1>{course.title}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
     <div className="stage-hud">
-      <span aria-live="polite">{run.rescued ? '小鸭已上船，划向码头' : '绕过浮木，靠近小鸭'}</span>
+      <span aria-live="polite">{riverGoal(room, seat)}</span>
       <progress aria-label="河道进度" max={100} value={progress} />
     </div>
     <div className="stage-scene">
-      <RiverCanvas run={run} paddles={room.paddles} />
+      <RiverCanvas level={room.level} run={run} paddles={room.paddles}
+        channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
+        flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
       {room.phase === 'paused' && <div className="stage-overlay" role="status">
         <strong>队友掉线，等对方回来继续。</strong>
         <span>房间会保留 90 秒。</span>
       </div>}
       {room.phase === 'finished' && <div className="stage-overlay finish">
-        <h2>小鸭到家了！</h2>
+        <h2>{room.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}</h2>
         <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 {run.collisions} 次</p>
-        <button className="primary" disabled={disabled} onClick={game.replay}>再玩一次</button>
+        <div className="finish-actions">
+          {next && <button className="primary" disabled={disabled} onClick={() => game.next(room.level)}>下一关</button>}
+          <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>
+        </div>
       </div>}
     </div>
+    {clues && room.phase !== 'finished' && <FogCluePanel clues={clues}
+      disabled={disabled || room.phase !== 'playing'} onShare={game.shareClue} />}
     {room.phase !== 'finished' && <div className="control-deck">
       <div>
         <p className="control-instruction">一人划，船转向。两人一起划，船才前进。</p>
         <div className="control-state">
-          {run.recoveryMs > 0 ? '划到了浮木，已回到最近的安全点。'
-            : `队友的${seatName[other]} · ${room.paddles[seat === 'left' ? 1 : 0] ? '划桨中' : '已松开'}`}
+          {run.recovery === 'logs' && '划到了浮木，已回到最近的安全点。'}
+          {run.recovery === 'shoal' && '碰到浅滩了。回到雾口，先对准安全水路。'}
+          {!run.recovery && `队友的${seatName[other]} · ${room.paddles[seat === 'left' ? 1 : 0] ? '划桨中' : '已松开'}`}
         </div>
       </div>
       <div className="paddle-control">
@@ -158,4 +184,43 @@ function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Ga
       </div>
     </div>}
   </section>;
+}
+
+function riverGoal(room: RoomView, seat: Seat) {
+  const run = room.run!;
+  if (run.practice) {
+    if (run.practice.every(Boolean)) return '两支桨都试过了，沿浮标一起划回码头';
+    return run.practice[seat === 'left' ? 0 : 1] ? '等队友单独试桨' : `单独试一次你的${seatName[seat]}`;
+  }
+  if (run.rescued) return '小鸭已上船，划向码头';
+  if (room.clues) {
+    const { flag, channel } = room.clues;
+    if (!flag || !channel) return '把各自看到的线索告诉队友，再穿过雾口';
+    if (!run.pastFog) return `两条线索已齐，沿${channelName[channel].slice(2)}穿过雾区`;
+    if (run.wrongFlag) return `这里没有小鸭，转向另一侧的${flagName[flag].slice(2)}`;
+    return `找到${flagName[flag].slice(2)}，接小鸭上船`;
+  }
+  return '绕过浮木，靠近小鸭';
+}
+
+function FogCluePanel({ clues, disabled, onShare }: {
+  clues: FogClues;
+  disabled: boolean;
+  onShare: () => void;
+}) {
+  const ownFlag = clues.own.kind === 'flag';
+  const shared = ownFlag ? clues.flag !== null : clues.channel !== null;
+  const otherClue = ownFlag
+    ? clues.channel && channelName[clues.channel]
+    : clues.flag && flagName[clues.flag];
+  return <aside className="clue-panel" aria-label="雾区线索">
+    <div>
+      <h2>{ownFlag ? '你的救援信号' : '你的浅滩地图'}</h2>
+      <strong>{clues.own.kind === 'flag' ? flagName[clues.own.value] : channelName[clues.own.value]}</strong>
+    </div>
+    <p aria-live="polite">{otherClue ? <>队友线索 <strong>{otherClue}</strong></> : '等队友分享另一条线索'}</p>
+    <button className="secondary" disabled={disabled || shared} onClick={onShare}>
+      {shared ? '已告诉队友' : '告诉队友'}
+    </button>
+  </aside>;
 }

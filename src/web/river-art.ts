@@ -1,4 +1,5 @@
-import { RIVER } from '../shared/river.js';
+import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from '../shared/river-levels.js';
+import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
 
 type Context = CanvasRenderingContext2D;
@@ -41,8 +42,9 @@ function bank(ctx: Context, bottom: boolean, width: number, height: number) {
   ctx.restore();
 }
 
-export function paintRiver(ctx: Context) {
-  const { width, height, logs, start, dock } = RIVER;
+export function paintRiver(ctx: Context, level: RiverLevel) {
+  const { width, height } = RIVER_SIZE;
+  const { logs, start, dock, buoys } = RIVER_COURSES[level];
   const water = ctx.createLinearGradient(0, 46, 0, height - 38);
   water.addColorStop(0, '#447e78');
   water.addColorStop(0.57, '#397b76');
@@ -64,7 +66,7 @@ export function paintRiver(ctx: Context) {
   bank(ctx, false, width, height);
   bank(ctx, true, width, height);
 
-  for (const buoy of [{ x: 231, y: 263 }, { x: 410, y: 254 }, { x: 510, y: 144 }, { x: 650, y: 144 }]) {
+  for (const buoy of buoys) {
     ellipse(ctx, buoy.x, buoy.y + 5, 12, 4, '#cde2cf55');
     ellipse(ctx, buoy.x, buoy.y, 6.5, 7.5, '#f7d388');
     ellipse(ctx, buoy.x - 1.8, buoy.y - 2.1, 2.4, 2.4, '#ffedb4');
@@ -109,6 +111,63 @@ export function paintRiver(ctx: Context) {
     ellipse(ctx, x - 16, end - 3, 4.8, 4.8, '#e1b978');
     ellipse(ctx, x + 16, end - 3, 4.8, 4.8, '#e1b978');
   }
+  if (level === 'fog') paintFog(ctx);
+}
+
+function paintFog(ctx: Context) {
+  const { startX, endX } = FOG_GATE;
+  const fog = ctx.createLinearGradient(startX - 34, 0, endX + 34, 0);
+  fog.addColorStop(0, '#c0d8ce00');
+  fog.addColorStop(0.24, '#c0d8cea8');
+  fog.addColorStop(0.74, '#c0d8cea8');
+  fog.addColorStop(1, '#c0d8ce00');
+  ctx.fillStyle = fog;
+  ctx.fillRect(startX - 34, 52, endX - startX + 68, 296);
+  for (let i = 0; i < 16; i++) {
+    ellipse(ctx, startX + 13 + (i * 41 % 113), 65 + i * 18, 32 + i % 8 * 4, 6, '#ebf4e435');
+  }
+  for (const [flag, { x, y }] of Object.entries(FOG_FLAGS)) {
+    roundRect(ctx, x - 26, y + 9, 52, 17, 3, '#5c4936');
+    for (let board = x - 24; board < x + 24; board += 8) {
+      roundRect(ctx, board, y + 10, 6, 14, 1, '#bc9661');
+    }
+    roundRect(ctx, x - 2, y - 24, 4, 38, 1, '#362d24');
+    if (flag === 'triangle') {
+      ctx.fillStyle = '#ffc97d';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 24);
+      ctx.lineTo(x + 22, y - 15);
+      ctx.lineTo(x, y - 6);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ellipse(ctx, x + 11, y - 15, 10, 10, '#bae9e3');
+    }
+  }
+}
+
+export function paintFogClues(ctx: Context, channel: Channel | null, flag: Flag | null) {
+  if (channel) {
+    const { startX, endX, lanes, halfWidth } = FOG_GATE;
+    const y = lanes[channel];
+    roundRect(ctx, startX - 11, y - halfWidth, endX - startX + 22, halfWidth * 2, 13, '#407a68a5');
+    ctx.strokeStyle = '#e6f5cd';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([9, 9]);
+    ctx.beginPath();
+    ctx.moveTo(startX - 12, y);
+    ctx.lineTo(endX + 12, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (flag) {
+    const { x, y, radius } = FOG_FLAGS[flag];
+    ctx.strokeStyle = '#fff1b8';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, radius - 4, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
 }
 
 function paintDuck(ctx: Context, x: number, y: number, size = 1) {
@@ -124,8 +183,9 @@ function paintDuck(ctx: Context, x: number, y: number, size = 1) {
 }
 
 export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
-  if (!run.rescued) {
-    const { x, y } = RIVER.duck;
+  const duck = RIVER_COURSES[run.level].duck;
+  if (duck && !run.rescued) {
+    const { x, y } = duck;
     ellipse(ctx, x, y, 30, 30, '#f4d77e26');
     ellipse(ctx, x, y, 22, 22, '#f4d77e26');
     paintDuck(ctx, x, y);

@@ -1,29 +1,40 @@
 import { useEffect, useRef } from 'react';
-import { createRiverRun, RIVER } from '../shared/river.js';
+import { initialRiverView } from '../shared/river.js';
 import type { Paddles, RiverView } from '../shared/river.js';
-import { paintActors, paintRiver } from './river-art.js';
+import { RIVER_SIZE } from '../shared/river-levels.js';
+import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
+import { paintActors, paintFogClues, paintRiver } from './river-art.js';
 
-const startView = createRiverRun();
 const idlePaddles: Paddles = [false, false];
 
-export function RiverCanvas({ run = startView, paddles = idlePaddles }: { run?: RiverView; paddles?: Paddles }) {
+interface Props {
+  level: RiverLevel;
+  run?: RiverView;
+  paddles?: Paddles;
+  channel?: Channel | null;
+  flag?: Flag | null;
+}
+
+export function RiverCanvas({ level, run, paddles = idlePaddles, channel = null, flag = null }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ run, paddles });
-  useEffect(() => { latest.current = { run, paddles }; }, [run, paddles]);
+  const latest = useRef({ run: run ?? initialRiverView(level), paddles, flag, channel });
+  useEffect(() => {
+    latest.current = { run: run ?? initialRiverView(level), paddles, flag, channel };
+  }, [level, run, paddles, flag, channel]);
 
   useEffect(() => {
     const target = canvas.current!;
     const ctx = target.getContext('2d');
     const scenery = document.createElement('canvas');
-    scenery.width = RIVER.width;
-    scenery.height = RIVER.height;
+    scenery.width = RIVER_SIZE.width;
+    scenery.height = RIVER_SIZE.height;
     const sceneContext = scenery.getContext('2d');
     if (!ctx || !sceneContext) return;
-    paintRiver(sceneContext);
+    paintRiver(sceneContext, level);
 
     let scale = 1;
     let frame = 0;
-    let previous: { run: RiverView; paddles: Paddles } | undefined;
+    let previous: typeof latest.current | undefined;
     let displayed = { ...latest.current.run };
     let resized = true;
 
@@ -31,7 +42,7 @@ export function RiverCanvas({ run = startView, paddles = idlePaddles }: { run?: 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       target.width = Math.max(1, Math.round(entry.contentRect.width * dpr));
       target.height = Math.max(1, Math.round(entry.contentRect.height * dpr));
-      scale = target.height / RIVER.height;
+      scale = target.height / RIVER_SIZE.height;
       resized = true;
     });
     observer.observe(target);
@@ -56,10 +67,11 @@ export function RiverCanvas({ run = startView, paddles = idlePaddles }: { run?: 
           };
         }
         const viewWidth = target.width / scale;
-        const maxCamera = Math.max(0, RIVER.width - viewWidth);
+        const maxCamera = Math.max(0, RIVER_SIZE.width - viewWidth);
         const camera = Math.min(maxCamera, Math.max(0, displayed.x - viewWidth * 0.32));
         ctx!.setTransform(scale, 0, 0, scale, -camera * scale, 0);
         ctx!.drawImage(scenery, 0, 0);
+        if (level === 'fog') paintFogClues(ctx!, next.channel, next.run.rescued ? null : next.flag);
         paintActors(ctx!, displayed, next.paddles);
         previous = next;
         resized = false;
@@ -71,7 +83,7 @@ export function RiverCanvas({ run = startView, paddles = idlePaddles }: { run?: 
       observer.disconnect();
       window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [level]);
 
   return <canvas className="river-canvas" aria-hidden="true" ref={canvas} />;
 }

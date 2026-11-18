@@ -4,10 +4,11 @@ import express from 'express';
 import { Server } from 'socket.io';
 import type { Socket } from 'socket.io';
 import {
-  normalizeRoomCode, validRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, RESERVATION_MS,
+  normalizeRoomCode, validRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, RESERVATION_MS, SEATS,
 } from '../shared/protocol.js';
-import type { ClientEvents, ClosedReason, Seat, ServerEvents } from '../shared/protocol.js';
+import type { ClientEvents, ClosedReason, Respond, RoomError, RoomView, Seat, ServerEvents } from '../shared/protocol.js';
 import { RIVER_TICK_MS } from '../shared/river.js';
+import { isRiverLevel } from '../shared/river-levels.js';
 import { Room } from './room.js';
 
 interface Membership {
@@ -48,8 +49,12 @@ export function createGameServer({
   const rooms = new Map<string, Room>();
   let tickNumber = 0;
 
-  function broadcast(room: Room, now: number) {
-    io.to(room.code).emit('room:view', room.view(now));
+  function broadcast(room: Room, now: number, volatile = false) {
+    for (const seat of SEATS) {
+      const socketId = room.members[seat]?.socketId;
+      const socket = socketId ? io.sockets.sockets.get(socketId) : undefined;
+      if (socket) (volatile ? socket.volatile : socket).emit('room:view', room.view(seat, now));
+    }
   }
 
   function closeRoom(room: Room, reason: ClosedReason) {
@@ -94,7 +99,7 @@ export function createGameServer({
       } else if (room.phase === 'playing') {
         room.tick(now);
         if (room.phase === 'playing') {
-          if (tickNumber % 2 === 0) io.to(room.code).volatile.emit('room:view', room.view(now));
+          if (tickNumber % 2 === 0) broadcast(room, now, true);
         } else {
           broadcast(room, now);
         }
@@ -104,6 +109,21 @@ export function createGameServer({
   clock.unref();
 
   io.on('connection', socket => {
+    function updateRoom(
+      respond: Respond<RoomView>,
+      change: (room: Room, seat: Seat, now: number) => RoomError | null,
+    ) {
+      if (typeof respond !== 'function') return;
+      const now = performance.now();
+      const membership = memberOf(socket, now);
+      if (!membership) return respond({ ok: false, error: 'not-member' });
+      const { room, seat } = membership;
+      const error = change(room, seat, now);
+      if (error) return respond({ ok: false, error });
+      respond({ ok: true, value: room.view(seat, now) });
+      broadcast(room, now);
+    }
+
     socket.on('room:create', respond => {
       if (typeof respond !== 'function') return;
       const now = performance.now();
@@ -170,26 +190,34 @@ export function createGameServer({
       broadcast(room, now);
     });
 
-    socket.on('room:ready', (ready, respond) => {
-      if (typeof respond !== 'function') return;
-      if (typeof ready !== 'boolean') return respond({ ok: false, error: 'bad-request' });
-      const now = performance.now();
-      const membership = memberOf(socket, now);
-      if (!membership) return respond({ ok: false, error: 'not-member' });
-      const { room, seat } = membership;
-      if (!room.ready(seat, ready, now)) return respond({ ok: false, error: 'wrong-phase' });
-      respond({ ok: true, value: room.view(now) });
-      broadcast(room, now);
+    socket.on('room:select-level', (level, respond) => {
+      updateRoom(respond, (room, seat, now) => {
+        if (!isRiverLevel(level)) return 'bad-request';
+        if (seat !== 'left') return 'host-only';
+        return room.selectLevel(level, now) ? null : 'wrong-phase';
+      });
+    });
+
+    socket.on('room:ready', (ready, lobbyRevision, respond) => {
+      updateRoom(respond, (room, seat, now) => {
+        if (typeof ready !== 'boolean' || !Number.isSafeInteger(lobbyRevision)) return 'bad-request';
+        return room.ready(seat, ready, lobbyRevision, now) ? null : 'wrong-phase';
+      });
     });
 
     socket.on('room:replay', respond => {
-      if (typeof respond !== 'function') return;
-      const now = performance.now();
-      const membership = memberOf(socket, now);
-      if (!membership) return respond({ ok: false, error: 'not-member' });
-      if (!membership.room.replay(now)) return respond({ ok: false, error: 'wrong-phase' });
-      respond({ ok: true, value: membership.room.view(now) });
-      broadcast(membership.room, now);
+      updateRoom(respond, (room, _seat, now) => room.replay(now) ? null : 'wrong-phase');
+    });
+
+    socket.on('room:next', (level, respond) => {
+      updateRoom(respond, (room, _seat, now) => {
+        if (!isRiverLevel(level)) return 'bad-request';
+        return room.advance(level, now) ? null : 'wrong-phase';
+      });
+    });
+
+    socket.on('game:share-clue', respond => {
+      updateRoom(respond, (room, seat, now) => room.shareClue(seat, now) ? null : 'wrong-phase');
     });
 
     socket.on('room:leave', respond => {

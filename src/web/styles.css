@@ -15,10 +15,10 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 280px; min-height: 100vh; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.48; cursor: default; }
-button:focus-visible, input:focus-visible { outline: 3px solid #e5db9f; outline-offset: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #e5db9f; outline-offset: 3px; }
 h1, h2, p, figure { margin: 0; }
 
 .shell { width: min(1240px, 100% - 96px); margin: 0 auto; }
@@ -136,6 +136,19 @@ input::placeholder { color: #a6b5a7; }
 .seats li > span:last-child { color: var(--light); font-size: 0.88rem; }
 .seats small { margin-left: 9px; color: var(--light); font-size: 0.77rem; }
 .room-actions { display: flex; gap: 16px; align-items: center; }
+.course-picker { margin-top: 14px; }
+.course-picker label { display: flex; align-items: center; gap: 12px; color: var(--light); }
+.course-picker label span { white-space: nowrap; }
+.course-picker select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--deep);
+  color: var(--ink);
+}
+.course-picker p > strong { margin-left: 6px; color: var(--mint); }
 
 .stage { width: min(1050px, 100%); margin: 28px auto 0; }
 .stage-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
@@ -164,7 +177,21 @@ progress { width: clamp(55px, 16vw, 150px); height: 10px; accent-color: var(--mi
 }
 .stage-overlay strong, .stage-overlay h2 { font-size: clamp(1.2rem, 4vw, 2.3rem); }
 .stage-overlay span, .stage-overlay p { color: var(--light); }
-.stage-overlay .primary { margin-top: 8px; }
+.finish-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.clue-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 10px 20px;
+  margin: 12px 0 0;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #243c32;
+}
+.clue-panel h2, .clue-panel p { color: var(--light); font-size: 0.9rem; }
+.clue-panel h2 { margin-bottom: 4px; font-weight: 650; }
+.clue-panel strong { color: var(--ink); }
 .control-deck { display: flex; justify-content: space-between; align-items: center; gap: 12px 18px; padding: 18px 0 0; }
 .control-instruction { font-weight: 680; line-height: 1.55; }
 .control-state, .keyboard-guide { color: var(--light); font-size: 0.86rem; margin-top: 7px; }
@@ -202,6 +229,9 @@ kbd { border: 1px solid var(--line); padding: 1px 4px; border-radius: 4px; }
   .control-deck { display: grid; justify-content: stretch; padding-top: 13px; }
   .control-state { margin-top: 4px; }
   .paddle-button { min-width: 0; width: 100%; }
+  .clue-panel { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; }
+  .clue-panel p { grid-column: 1; }
+  .clue-panel button { grid-column: 2; grid-row: 1 / 3; }
   .keyboard-guide { display: none; }
   .notice { gap: 7px; }
 }
