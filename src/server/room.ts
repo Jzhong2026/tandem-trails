@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { createEgg, stepEgg } from '../shared/egg.js';
+import { createEgg, eggView, stepEgg } from '../shared/egg.js';
 import type { EggView } from '../shared/egg.js';
 import { GAME_LEVELS, usesMovementControls } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
@@ -192,7 +192,7 @@ export class Room {
     const run = this.run;
     if (!run) return null;
     if (run.level === 'mine') return mineView(run);
-    if (run.level === 'egg') return { ...run, raised: { ...run.raised }, elapsedMs: Math.round(run.elapsedMs) };
+    if (run.level === 'egg') return eggView(run);
     return riverView(run);
   }
 

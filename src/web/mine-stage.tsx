@@ -5,6 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { MineCanvas } from './mine-canvas.js';
 import { MovementDeck } from './movement-deck.js';
+import { PauseOverlay } from './pause-overlay.js';
 
 type Game = ReturnType<typeof useRoom>;
 
@@ -48,11 +49,8 @@ export function MineStage({ run, phase, seat, game }: {
       <span className="mine-count">萤火虫 {fireflies} / 2</span>
     </div>
     <div className="stage-scene">
-      <MineCanvas run={run} seat={seat} />
-      {phase === 'paused' && <div className="stage-overlay" role="status">
-        <strong>队友掉线，等对方回来继续。</strong>
-        <span>房间会保留 90 秒。</span>
-      </div>}
+      <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} />
+      {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <div className="stage-overlay finish">
         <h2>一起走出矿洞了！</h2>
         <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯</p>

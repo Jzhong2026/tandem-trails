@@ -9,6 +9,10 @@ export const EGG = {
   exit: 895,
   groundY: 296,
   summitHeight: 72,
+  carrySpeed: 126,
+  rollRate: .92,
+  settleRate: 3.5,
+  recoveryMs: 750,
   slopes: [
     { from: 255, to: 430, low: 'left', pad: 204 },
     { from: 620, to: 805, low: 'right', pad: 566 },
@@ -33,6 +37,10 @@ export function createEgg(): EggView {
     level: 'egg', x: EGG.start, roll: 0, tilt: 0, drops: 0, checkpoint: EGG.start,
     raised: { left: false, right: false }, recoveryMs: 0, finished: false, elapsedMs: 0,
   };
+}
+
+export function eggView(run: EggView): EggView {
+  return { ...run, raised: { ...run.raised }, elapsedMs: Math.round(run.elapsedMs) };
 }
 
 export function eggSlope(x: number) {
@@ -62,12 +70,12 @@ export function stepEgg(run: EggView, inputs: MovementInputs) {
   run.tilt = slopeTilt + Number(run.raised.right) - Number(run.raised.left);
   const direction = movementDirection(inputs.left);
   if (direction && direction === movementDirection(inputs.right)) {
-    const x = Math.max(EGG.start, Math.min(EGG.exit, run.x + direction * 126 * seconds));
-    if (x !== run.x) run.roll += run.tilt * .92 * seconds;
+    const x = Math.max(EGG.start, Math.min(EGG.exit, run.x + direction * EGG.carrySpeed * seconds));
+    if (x !== run.x) run.roll += run.tilt * EGG.rollRate * seconds;
     run.x = x;
   }
   // A level stretcher can settle even while the players stop to coordinate.
-  if (run.tilt === 0) run.roll *= 1 - 3.5 * seconds;
+  if (run.tilt === 0) run.roll *= 1 - EGG.settleRate * seconds;
   const pad = EGG.slopes.findLast(section => section.pad <= run.x)?.pad;
   if (pad !== undefined) run.checkpoint = Math.max(run.checkpoint, pad);
   if (Math.abs(run.roll) >= 1) {
@@ -75,7 +83,7 @@ export function stepEgg(run: EggView, inputs: MovementInputs) {
     run.roll = 0;
     run.tilt = 0;
     run.drops++;
-    run.recoveryMs = 750;
+    run.recoveryMs = EGG.recoveryMs;
     return;
   }
   run.finished = run.x === EGG.exit;

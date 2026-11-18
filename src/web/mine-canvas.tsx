@@ -2,6 +2,7 @@ import { createMine, minerY, MINE } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
 import type { Seat } from '../shared/protocol.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
+import { interpolateMine } from './panorama-motion.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createMine();
@@ -109,7 +110,7 @@ function focusX(run: MineView, seat: Seat) {
   return run.players[seat].x;
 }
 
-export function MineCanvas({ run = preview, seat }: { run?: MineView; seat: Seat }) {
+export function MineCanvas({ run = preview, seat, frozen = false }: { run?: MineView; seat: Seat; frozen?: boolean }) {
   return <PanoramaCanvas run={run} seat={seat} world={MINE} focusX={focusX}
-    paintLayout={paintLayout} paintRun={paintRun} theme="mine-canvas" />;
+    paintLayout={paintLayout} paintRun={paintRun} theme="mine-canvas" frozen={frozen} interpolate={interpolateMine} />;
 }

@@ -3,7 +3,7 @@ import type { Seat } from '../shared/protocol.js';
 
 type Context = CanvasRenderingContext2D;
 
-export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paintRun, theme }: {
+export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paintRun, theme, frozen, interpolate }: {
   run: T;
   seat: Seat;
   world: { width: number; height: number };
@@ -11,10 +11,12 @@ export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paint
   paintLayout: (ctx: Context) => void;
   paintRun: (ctx: Context, run: T, seat: Seat) => void;
   theme: string;
+  frozen: boolean;
+  interpolate: (from: T, to: T, blend: number) => T;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef(run);
-  useEffect(() => { latest.current = run; }, [run]);
+  const latest = useRef({ run, frozen });
+  useEffect(() => { latest.current = { run, frozen }; }, [run, frozen]);
 
   useEffect(() => {
     const target = canvas.current!;
@@ -35,16 +37,27 @@ export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paint
     });
     observer.observe(target);
     let frame = 0;
-    function update() {
-      const state = latest.current;
-      if (drawn !== state) {
+    let displayed = latest.current.run;
+    let wasFrozen = latest.current.frozen;
+    let lastTime: number | undefined;
+    function update(time: number) {
+      const next = latest.current;
+      const delta = lastTime === undefined ? 16 : Math.min(40, time - lastTime);
+      lastTime = time;
+      if (next.frozen || wasFrozen) {
+        displayed = next.run;
+      } else if (displayed !== next.run) {
+        displayed = interpolate(displayed, next.run, Math.min(1, delta / 55));
+      }
+      wasFrozen = next.frozen;
+      if (drawn !== displayed) {
         const scale = target.height / world.height;
         const viewWidth = target.width / scale;
-        const offset = Math.max(0, Math.min(world.width - viewWidth, focusX(state, seat) - viewWidth * .38));
+        const offset = Math.max(0, Math.min(world.width - viewWidth, focusX(displayed, seat) - viewWidth * .38));
         ctx!.setTransform(scale, 0, 0, scale, -offset * scale, 0);
         ctx!.drawImage(scenery, 0, 0);
-        paintRun(ctx!, state, seat);
-        drawn = state;
+        paintRun(ctx!, displayed, seat);
+        drawn = displayed;
       }
       frame = requestAnimationFrame(update);
     }
@@ -53,7 +66,7 @@ export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paint
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [seat, world, focusX, paintLayout, paintRun]);
+  }, [seat, world, focusX, paintLayout, paintRun, interpolate]);
 
   return <canvas ref={canvas} className={`river-canvas ${theme}`} aria-hidden="true" />;
 }

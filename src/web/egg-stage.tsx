@@ -5,6 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { EggCanvas } from './egg-canvas.js';
 import { MovementDeck } from './movement-deck.js';
+import { PauseOverlay } from './pause-overlay.js';
 
 type Game = ReturnType<typeof useRoom>;
 
@@ -43,11 +44,8 @@ export function EggStage({ run, phase, seat, game }: {
       </label>
     </div>
     <div className="stage-scene">
-      <EggCanvas run={run} seat={seat} />
-      {phase === 'paused' && <div className="stage-overlay" role="status">
-        <strong>队友掉线，等对方回来继续。</strong>
-        <span>房间会保留 90 秒。</span>
-      </div>}
+      <EggCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} />
+      {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <div className="stage-overlay finish">
         <h2>龙蛋回到巢里了！</h2>
         <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 软垫重试 {run.drops} 次</p>

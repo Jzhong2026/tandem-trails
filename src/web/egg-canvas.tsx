@@ -2,6 +2,7 @@ import { createEgg, EGG, eggGroundY } from '../shared/egg.js';
 import type { EggView } from '../shared/egg.js';
 import type { Seat } from '../shared/protocol.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
+import { interpolateEgg } from './panorama-motion.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createEgg();
@@ -111,7 +112,7 @@ function paintRun(ctx: Context, run: EggView, seat: Seat) {
 
 const focusX = (run: EggView) => run.x;
 
-export function EggCanvas({ run = preview, seat }: { run?: EggView; seat: Seat }) {
+export function EggCanvas({ run = preview, seat, frozen = false }: { run?: EggView; seat: Seat; frozen?: boolean }) {
   return <PanoramaCanvas run={run} seat={seat} world={EGG} focusX={focusX}
-    paintLayout={paintLayout} paintRun={paintRun} theme="egg-canvas" />;
+    paintLayout={paintLayout} paintRun={paintRun} theme="egg-canvas" frozen={frozen} interpolate={interpolateEgg} />;
 }

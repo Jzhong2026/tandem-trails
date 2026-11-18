@@ -13,6 +13,8 @@ export const MINE = {
   bridge: { start: 308, end: 471, switchX: 266 },
   lift: { x: 674, switchX: 578, durationMs: 1400 },
   fireflies: { left: 191, right: 511 },
+  fireflyRadius: 16,
+  walkSpeed: 142,
   interactRange: 27,
   exit: 891,
 } as const;
@@ -63,7 +65,7 @@ export function minerAtExit(run: MineView, seat: Seat) {
 }
 
 function walk(x: number, input: MovementInput, min: number, max: number) {
-  const distance = movementDirection(input) * 142 * GAME_TICK_MS / 1000;
+  const distance = movementDirection(input) * MINE.walkSpeed * GAME_TICK_MS / 1000;
   return Math.max(min, Math.min(max, x + distance));
 }
 
@@ -94,7 +96,7 @@ export function stepMine(run: MineView, inputs: MovementInputs) {
     run.liftProgress = Math.min(1, run.liftProgress + GAME_TICK_MS / lift.durationMs);
   }
 
-  if (Math.abs(lower.x - MINE.fireflies.left) < 16) lower.firefly = true;
-  if (Math.abs(upper.x - MINE.fireflies.right) < 16) upper.firefly = true;
+  if (Math.abs(lower.x - MINE.fireflies.left) < MINE.fireflyRadius) lower.firefly = true;
+  if (Math.abs(upper.x - MINE.fireflies.right) < MINE.fireflyRadius) upper.firefly = true;
   run.finished = minerAtExit(run, 'left') && minerAtExit(run, 'right') && lower.firefly && upper.firefly;
 }

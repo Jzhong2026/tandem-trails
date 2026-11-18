@@ -11,6 +11,7 @@ import { EggStage } from './egg-stage.js';
 import { MineCanvas } from './mine-canvas.js';
 import { MineStage } from './mine-stage.js';
 import { PaddleButton } from './paddle-button.js';
+import { PauseOverlay } from './pause-overlay.js';
 import { RiverCanvas } from './river-canvas.js';
 import { useRoom } from './use-room.js';
 
@@ -179,10 +180,7 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
       <RiverCanvas level={run.level} run={run} paddles={room.paddles}
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
-      {room.phase === 'paused' && <div className="stage-overlay" role="status">
-        <strong>队友掉线，等对方回来继续。</strong>
-        <span>房间会保留 90 秒。</span>
-      </div>}
+      {room.phase === 'paused' && <PauseOverlay />}
       {room.phase === 'finished' && <div className="stage-overlay finish">
         <h2>{run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}</h2>
         <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 {run.collisions} 次</p>
