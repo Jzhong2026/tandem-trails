@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#182c26" />
+    <meta name="description" content="Tandem Trails 亲子协作大冒险。和家人一起划船、救小鸭，搭档闯关。" />
+    <title>Tandem Trails · 亲子协作大冒险</title>
+  </head>
+  <body>
+    <div id="app">
+      <main id="file-launch" hidden style="max-width: 34rem; margin: 12vh auto; padding: 0 1rem; font-family: system-ui, sans-serif">
+        <h1>Tandem Trails</h1>
+        <p>双人联机需要通过游戏服务打开。</p>
+        <p><a href="http://localhost:3000/">打开 Tandem Trails</a></p>
+        <p>如果服务还没启动，请在项目目录运行 <code>npm run build</code> 和 <code>npm start</code>。</p>
+      </main>
+    </div>
+    <script>
+      if (location.protocol === 'file:') document.getElementById('file-launch').hidden = false;
+    </script>
+  </body>
+</html>
