@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Browser, Page } from '@playwright/test';
+import type { Browser, CDPSession, Page } from '@playwright/test';
 import type { RoomView } from '../../src/shared/protocol.js';
 import type { RiverView } from '../../src/shared/river.js';
 
@@ -25,6 +25,10 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
     await guest.goto(invitation);
     await guest.getByRole('button', { name: '加入房间' }).tap();
     const touch = await phone.newCDPSession(guest);
+    function river() {
+      const run = latest?.run;
+      return !run || run.level === 'mine' || run.level === 'egg' ? undefined : run;
+    }
 
     async function hold(left: boolean, right: boolean, until: (run: RiverView) => boolean) {
       const button = guest.getByRole('button', { name: '按住划右桨' });
@@ -41,7 +45,10 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
           await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints });
           await expect(button).toHaveAttribute('aria-pressed', 'true');
         }
-        await expect.poll(() => latest?.run && until(latest.run), {
+        await expect.poll(() => {
+          const run = river();
+          return run !== undefined && until(run);
+        }, {
           intervals: [20, 35], timeout: 5000,
           message: 'The server should report the expected boat position or progress',
         }).toBe(true);
@@ -52,7 +59,7 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
         if (right) await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       }
     }
-    await play({ host, guest, invitation, hold, room: () => latest });
+    await play({ host, guest, touch, invitation, hold, river, room: () => latest });
   } finally {
     await Promise.all([desktop.close(), phone.close()]);
   }
@@ -61,8 +68,10 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
 interface Coop {
   host: Page;
   guest: Page;
+  touch: CDPSession;
   invitation: string;
   hold: (left: boolean, right: boolean, until: (run: RiverView) => boolean) => Promise<void>;
+  river: () => RiverView | undefined;
   room: () => RoomView | undefined;
 }
 

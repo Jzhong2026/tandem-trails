@@ -1,7 +1,7 @@
+import { GAME_TICK_MS } from './game-levels.js';
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from './river-levels.js';
 import type { FogLayout, RiverLevel } from './river-levels.js';
 
-export const RIVER_TICK_MS = 1000 / 30;
 export type Paddles = [left: boolean, right: boolean];
 
 export interface RiverView {
@@ -55,7 +55,7 @@ export function riverView(run: RiverRun): RiverView {
   };
 }
 
-const stepSeconds = RIVER_TICK_MS / 1000;
+const stepSeconds = GAME_TICK_MS / 1000;
 const boatRadius = 15;
 const practiceHoldTicks = 5;
 
@@ -78,9 +78,9 @@ function resetAtCheckpoint(run: RiverRun, reason: 'logs' | 'shoal') {
 
 export function stepRiver(run: RiverRun, [left, right]: Paddles) {
   if (run.finished) return;
-  run.elapsedMs += RIVER_TICK_MS;
+  run.elapsedMs += GAME_TICK_MS;
   if (run.recoveryMs > 0) {
-    run.recoveryMs = Math.max(0, run.recoveryMs - RIVER_TICK_MS);
+    run.recoveryMs = Math.max(0, run.recoveryMs - GAME_TICK_MS);
     if (run.recoveryMs === 0) run.recovery = null;
     return;
   }

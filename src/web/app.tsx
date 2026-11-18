@@ -1,8 +1,15 @@
 import { useState } from 'react';
+import { EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, GAME_LEVELS, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE } from '../shared/game-levels.js';
+import type { GameLevel } from '../shared/game-levels.js';
 import { normalizeRoomCode, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
 import type { FogClues, RoomView, Seat } from '../shared/protocol.js';
-import { nextRiverLevel, RIVER_COURSES, RIVER_ORDER } from '../shared/river-levels.js';
-import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
+import { nextRiverLevel, RIVER_COURSES } from '../shared/river-levels.js';
+import type { Channel, Flag } from '../shared/river-levels.js';
+import type { RiverView } from '../shared/river.js';
+import { EggCanvas } from './egg-canvas.js';
+import { EggStage } from './egg-stage.js';
+import { MineCanvas } from './mine-canvas.js';
+import { MineStage } from './mine-stage.js';
 import { PaddleButton } from './paddle-button.js';
 import { RiverCanvas } from './river-canvas.js';
 import { useRoom } from './use-room.js';
@@ -11,6 +18,18 @@ type Game = ReturnType<typeof useRoom>;
 const seatName = { left: '左桨', right: '右桨' } as const;
 const flagName: Record<Flag, string> = { triangle: '▲ 三角旗', circle: '● 圆旗' };
 const channelName: Record<Channel, string> = { upper: '↑ 靠上岸的水路', lower: '↓ 靠下岸的水路' };
+
+function courseInfo(level: GameLevel) {
+  if (level === 'mine') return { title: MINE_TITLE, summary: MINE_SUMMARY, chapter: MINE_LEVEL_TITLE };
+  if (level === 'egg') return { title: EGG_TITLE, summary: EGG_SUMMARY, chapter: EGG_LEVEL_TITLE };
+  return { ...RIVER_COURSES[level], chapter: '双桨救援队' };
+}
+
+function roleName(level: GameLevel, seat: Seat) {
+  if (level === 'mine') return seat === 'left' ? '下层' : '上层';
+  if (level === 'egg') return seat === 'left' ? '左端' : '右端';
+  return seatName[seat];
+}
 
 export function App() {
   const game = useRoom();
@@ -33,9 +52,13 @@ export function App() {
       </div>}
       {game.error && <p className="notice" role="alert">{game.error}</p>}
       {game.room && game.seat
-        ? game.room.phase === 'lobby'
+        ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
-          : <RiverStage room={game.room} seat={game.seat} game={game} />
+          : game.room.run.level === 'mine'
+            ? <MineStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+            : game.room.run.level === 'egg'
+              ? <EggStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+              : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
         : <section className="home">
           <div className="home-copy">
             <h1>亲子协作<br />大冒险</h1>
@@ -54,17 +77,18 @@ export function App() {
               </div>
             </form>
           </div>
-          <RiverCard level="bend" />
+          <CourseCard level="bend" />
         </section>}
     </main>
   </div>;
 }
 
-function RiverCard({ level }: { level: RiverLevel }) {
+function CourseCard({ level }: { level: GameLevel }) {
+  const course = courseInfo(level);
   return <figure className="river-card">
-    <RiverCanvas level={level} />
+    {level === 'mine' ? <MineCanvas seat="left" /> : level === 'egg' ? <EggCanvas seat="left" /> : <RiverCanvas level={level} />}
     <figcaption>
-      <div><span className="chapter">双桨救援队</span><strong>{RIVER_COURSES[level].title}</strong></div>
+      <div><span className="chapter">{course.chapter}</span><strong>{course.title}</strong></div>
       <span className="player-count">2 人合作</span>
     </figcaption>
   </figure>;
@@ -77,6 +101,7 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
   address.searchParams.set('room', room.code);
   const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(address.hostname);
   const disabled = game.connection !== 'online' || game.busy;
+  const course = courseInfo(room.level);
 
   return <section className="room-layout">
     <div className="room-panel">
@@ -102,19 +127,20 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
         {seat === 'left' ? <label>
           <span>关卡</span>
           <select value={room.level} disabled={disabled}
-            onChange={event => void game.selectLevel(event.currentTarget.value as RiverLevel)}>
-            {RIVER_ORDER.map(level => <option key={level} value={level}>
-              {RIVER_COURSES[level].title}{room.completed.includes(level) ? ' · 已通关' : ''}
+            onChange={event => void game.selectLevel(event.currentTarget.value as GameLevel)}>
+            {GAME_LEVELS.map(level => <option key={level} value={level}>
+              {courseInfo(level).title}{room.completed.includes(level) ? ' · 已通关' : ''}
             </option>)}
           </select>
-        </label> : <p>本轮关卡 <strong>{RIVER_COURSES[room.level].title}</strong></p>}
-        <p className="assist">{RIVER_COURSES[room.level].summary}</p>
+        </label> : <p>本轮关卡 <strong>{course.title}</strong></p>}
+        <p className="assist">{course.summary}</p>
       </div>
       <ul className="seats">
         {SEATS.map(key => {
           const player = room.players[key];
           return <li key={key} className={key}>
-            <span>{seatName[key]}{key === seat && <small>你</small>}</span>
+            <span>{roleName(room.level, key)}
+              {key === seat && <small>你</small>}</span>
             <span>{!player ? '等待加入' : !player.online ? '暂时掉线' : player.ready ? '已准备' : '未准备'}</span>
           </li>;
         })}
@@ -126,15 +152,14 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
         <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
       </div>
     </div>
-    <RiverCard level={room.level} />
+    <CourseCard level={room.level} />
   </section>;
 }
 
-function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Game }) {
-  const run = room.run!;
+function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView; seat: Seat; game: Game }) {
   const other = seat === 'left' ? 'right' : 'left';
-  const course = RIVER_COURSES[room.level];
-  const next = nextRiverLevel(room.level);
+  const course = RIVER_COURSES[run.level];
+  const next = nextRiverLevel(run.level);
   const clues = room.clues;
   const disabled = game.connection !== 'online' || game.busy;
   const progress = room.phase === 'finished' ? 100 : Math.min(99, Math.round(
@@ -147,11 +172,11 @@ function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Ga
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
     <div className="stage-hud">
-      <span aria-live="polite">{riverGoal(room, seat)}</span>
+      <span aria-live="polite">{riverGoal(run, room.clues, seat)}</span>
       <progress aria-label="河道进度" max={100} value={progress} />
     </div>
     <div className="stage-scene">
-      <RiverCanvas level={room.level} run={run} paddles={room.paddles}
+      <RiverCanvas level={run.level} run={run} paddles={room.paddles}
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
       {room.phase === 'paused' && <div className="stage-overlay" role="status">
@@ -159,10 +184,10 @@ function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Ga
         <span>房间会保留 90 秒。</span>
       </div>}
       {room.phase === 'finished' && <div className="stage-overlay finish">
-        <h2>{room.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}</h2>
+        <h2>{run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}</h2>
         <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 {run.collisions} 次</p>
         <div className="finish-actions">
-          {next && <button className="primary" disabled={disabled} onClick={() => game.next(room.level)}>下一关</button>}
+          {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
           <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>
         </div>
       </div>}
@@ -186,15 +211,14 @@ function RiverStage({ room, seat, game }: { room: RoomView; seat: Seat; game: Ga
   </section>;
 }
 
-function riverGoal(room: RoomView, seat: Seat) {
-  const run = room.run!;
+function riverGoal(run: RiverView, clues: FogClues | null, seat: Seat) {
   if (run.practice) {
     if (run.practice.every(Boolean)) return '两支桨都试过了，沿浮标一起划回码头';
     return run.practice[seat === 'left' ? 0 : 1] ? '等队友单独试桨' : `单独试一次你的${seatName[seat]}`;
   }
   if (run.rescued) return '小鸭已上船，划向码头';
-  if (room.clues) {
-    const { flag, channel } = room.clues;
+  if (clues) {
+    const { flag, channel } = clues;
     if (!flag || !channel) return '把各自看到的线索告诉队友，再穿过雾口';
     if (!run.pastFog) return `两条线索已齐，沿${channelName[channel].slice(2)}穿过雾区`;
     if (run.wrongFlag) return `这里没有小鸭，转向另一侧的${flagName[flag].slice(2)}`;

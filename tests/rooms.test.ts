@@ -84,13 +84,14 @@ test('only admitted players can start, input leases expire and a returning playe
   assert.equal(accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true, revision)).phase, 'lobby');
   assert.equal(accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, revision)).phase, 'playing');
 
-  const advance = roomWhen(host, current => (current.run?.x ?? 0) > 126);
+  const advance = roomWhen(host, current => current.run?.level === 'bend' && current.run.x > 126);
   host.emit('game:paddle', true);
   guest.emit('game:paddle', true);
   await advance;
   const expired = await roomWhen(host, current => current.run !== null && !current.paddles[0] && !current.paddles[1]);
   const still = await roomWhen(host, current => (current.run?.elapsedMs ?? 0) > expired.run!.elapsedMs + 70);
-  assert.equal(still.run?.x, expired.run?.x);
+  assert.ok(still.run?.level === 'bend' && expired.run?.level === 'bend');
+  assert.equal(still.run.x, expired.run.x);
 
   const pausedUpdate = roomWhen(host, current => current.phase === 'paused');
   guest.disconnect();
@@ -201,4 +202,33 @@ test('a fog clue is private until its owner shares it and the other seat sees on
   }));
   assert.deepEqual(resumed.room.clues, updated.clues);
   assert.equal(resumed.room.phase, 'playing');
+});
+
+test('the mine uses each seat’s own controls and a returning player resumes without a held input', async t => {
+  const connect = await fixture(t);
+  const [host, guest, outsider] = await Promise.all([connect(), connect(), connect()]);
+  const first = await create(host);
+  const joined = accepted<Admission>(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
+  const mine = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'mine'));
+  await host.timeout(1000).emitWithAck('room:ready', true, mine.lobbyRevision);
+  const playing = accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, mine.lobbyRevision));
+  assert.equal(playing.run?.level, 'mine');
+  outsider.emit('game:movement', { left: false, right: true, interact: true });
+  guest.emit('game:paddle', true);
+  const moved = roomWhen(host, current => current.run?.level === 'mine' && current.run.players.left.x > 119);
+  host.emit('game:movement', { left: false, right: true, interact: true });
+  const active = await moved;
+  assert.ok(active.run?.level === 'mine');
+  assert.equal(active.run.players.right.x, 105);
+  const pause = roomWhen(host, current => current.phase === 'paused');
+  guest.disconnect();
+  const paused = await pause;
+  const returning = await connect();
+  const resumed = accepted<Admission>(await returning.timeout(1000).emitWithAck('room:resume', {
+    code: first.room.code, token: joined.token,
+  }));
+  assert.deepEqual(resumed.room.run, paused.run);
+  const after = await roomWhen(host, current => (current.run?.elapsedMs ?? 0) > paused.run!.elapsedMs + 120);
+  assert.ok(after.run?.level === 'mine' && paused.run?.level === 'mine');
+  assert.deepEqual(after.run.players, paused.run.players);
 });

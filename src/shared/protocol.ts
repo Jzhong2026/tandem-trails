@@ -1,5 +1,9 @@
 import type { Paddles, RiverView } from './river.js';
 import type { Channel, Flag, RiverLevel } from './river-levels.js';
+import type { GameLevel } from './game-levels.js';
+import type { MineView } from './mine.js';
+import type { EggView } from './egg.js';
+import type { MovementInput } from './movement.js';
 
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 6;
@@ -27,12 +31,12 @@ export interface FogClues {
 export interface RoomView {
   code: string;
   phase: RoomPhase;
-  level: RiverLevel;
+  level: GameLevel;
   lobbyRevision: number;
-  completed: RiverLevel[];
+  completed: GameLevel[];
   players: Record<Seat, PlayerView | null>;
   paddles: Paddles;
-  run: RiverView | null;
+  run: RiverView | MineView | EggView | null;
   clues: FogClues | null;
 }
 
@@ -54,12 +58,13 @@ export interface ClientEvents {
   'room:create': (respond: Respond<Admission>) => void;
   'room:join': (code: string, respond: Respond<Admission>) => void;
   'room:resume': (session: Session, respond: Respond<Admission>) => void;
-  'room:select-level': (level: RiverLevel, respond: Respond<RoomView>) => void;
+  'room:select-level': (level: GameLevel, respond: Respond<RoomView>) => void;
   'room:ready': (ready: boolean, lobbyRevision: number, respond: Respond<RoomView>) => void;
   'room:replay': (respond: Respond<RoomView>) => void;
   'room:next': (level: RiverLevel, respond: Respond<RoomView>) => void;
   'room:leave': (respond: Respond<null>) => void;
   'game:paddle': (pressed: boolean) => void;
+  'game:movement': (controls: MovementInput) => void;
   'game:share-clue': (respond: Respond<RoomView>) => void;
 }
 

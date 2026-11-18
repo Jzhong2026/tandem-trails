@@ -1,14 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { INPUT_REFRESH_MS } from '../shared/protocol.js';
 import type { Seat } from '../shared/protocol.js';
 
-interface Props {
+interface PaddleProps {
   seat: Seat;
   enabled: boolean;
   onPaddle: (pressed: boolean) => void;
 }
 
-export function PaddleButton({ seat, enabled, onPaddle }: Props) {
+export function PaddleButton({ seat, enabled, onPaddle }: PaddleProps) {
+  return <HoldButton enabled={enabled} keyCode="Space"
+    className={`paddle-button ${seat}`} onHold={onPaddle}>
+    按住划{seat === 'left' ? '左' : '右'}桨
+  </HoldButton>;
+}
+
+interface HoldProps {
+  enabled: boolean;
+  keyCode: string;
+  className: string;
+  onHold: (pressed: boolean) => void;
+  children: ReactNode;
+  refresh?: boolean;
+}
+
+export function HoldButton({ enabled, keyCode, className, onHold, children, refresh = true }: HoldProps) {
   const [pressed, setPressed] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const keys = useRef(false);
@@ -20,7 +37,7 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
     if (active === sent.current) return;
     sent.current = active;
     setPressed(active);
-    onPaddle(active);
+    onHold(active);
   }
 
   useEffect(() => {
@@ -29,15 +46,18 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
       return;
     }
     function keyDown(event: KeyboardEvent) {
-      if (event.code !== 'Space' || event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.target instanceof HTMLElement
-        && event.target.closest('button, input, a') && event.target !== button.current) return;
+      if (event.code !== keyCode || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.target instanceof HTMLElement && event.target !== button.current) {
+        if (event.target.closest('input, textarea, select, [contenteditable]')) return;
+        if (keyCode === 'Space' && event.target.closest('button, a')) return;
+      }
       event.preventDefault();
+      if (event.repeat && !keys.current) return;
       keys.current = true;
       update();
     }
     function keyUp(event: KeyboardEvent) {
-      if (event.code !== 'Space' || !keys.current) return;
+      if (event.code !== keyCode || !keys.current) return;
       event.preventDefault();
       keys.current = false;
       update();
@@ -50,16 +70,16 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
     function onVisibility() {
       if (document.hidden) release();
     }
-    const refresh = window.setInterval(() => {
-      if (sent.current) onPaddle(true);
-    }, INPUT_REFRESH_MS);
+    const interval = refresh ? window.setInterval(() => {
+      if (sent.current) onHold(true);
+    }, INPUT_REFRESH_MS) : undefined;
     window.addEventListener('keydown', keyDown);
     window.addEventListener('keyup', keyUp);
     window.addEventListener('blur', release);
     window.addEventListener('pagehide', release);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.clearInterval(refresh);
+      window.clearInterval(interval);
       window.removeEventListener('keydown', keyDown);
       window.removeEventListener('keyup', keyUp);
       window.removeEventListener('blur', release);
@@ -67,7 +87,7 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
       document.removeEventListener('visibilitychange', onVisibility);
       release();
     };
-  }, [enabled, onPaddle]);
+  }, [enabled, keyCode, onHold, refresh]);
 
   const releasePointer = (id: number) => {
     if (pointer.current !== id) return;
@@ -80,7 +100,7 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
     type="button"
     aria-pressed={pressed}
     disabled={!enabled}
-    className={`paddle-button ${seat}`}
+    className={className}
     onPointerDown={event => {
       if (!enabled || event.button !== 0 || pointer.current !== null) return;
       pointer.current = event.pointerId;
@@ -90,5 +110,5 @@ export function PaddleButton({ seat, enabled, onPaddle }: Props) {
     onPointerUp={event => releasePointer(event.pointerId)}
     onPointerCancel={event => releasePointer(event.pointerId)}
     onLostPointerCapture={event => releasePointer(event.pointerId)}
-  >按住划{seat === 'left' ? '左' : '右'}桨</button>;
+  >{children}</button>;
 }

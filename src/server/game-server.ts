@@ -7,7 +7,8 @@ import {
   normalizeRoomCode, validRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, RESERVATION_MS, SEATS,
 } from '../shared/protocol.js';
 import type { ClientEvents, ClosedReason, Respond, RoomError, RoomView, Seat, ServerEvents } from '../shared/protocol.js';
-import { RIVER_TICK_MS } from '../shared/river.js';
+import { GAME_TICK_MS, isGameLevel } from '../shared/game-levels.js';
+import { isMovementInput } from '../shared/movement.js';
 import { isRiverLevel } from '../shared/river-levels.js';
 import { Room } from './room.js';
 
@@ -105,7 +106,7 @@ export function createGameServer({
         }
       }
     }
-  }, RIVER_TICK_MS);
+  }, GAME_TICK_MS);
   clock.unref();
 
   io.on('connection', socket => {
@@ -192,7 +193,7 @@ export function createGameServer({
 
     socket.on('room:select-level', (level, respond) => {
       updateRoom(respond, (room, seat, now) => {
-        if (!isRiverLevel(level)) return 'bad-request';
+        if (!isGameLevel(level)) return 'bad-request';
         if (seat !== 'left') return 'host-only';
         return room.selectLevel(level, now) ? null : 'wrong-phase';
       });
@@ -232,6 +233,13 @@ export function createGameServer({
       const now = performance.now();
       const membership = memberOf(socket, now);
       if (membership) membership.room.paddle(membership.seat, pressed, now);
+    });
+
+    socket.on('game:movement', controls => {
+      if (!isMovementInput(controls)) return;
+      const now = performance.now();
+      const membership = memberOf(socket, now);
+      if (membership) membership.room.movementInput(membership.seat, controls, now);
     });
 
     socket.on('disconnect', () => {

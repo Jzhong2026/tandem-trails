@@ -1,4 +1,12 @@
 import { randomBytes, randomInt } from 'node:crypto';
+import { createEgg, stepEgg } from '../shared/egg.js';
+import type { EggView } from '../shared/egg.js';
+import { GAME_LEVELS, usesMovementControls } from '../shared/game-levels.js';
+import type { GameLevel } from '../shared/game-levels.js';
+import { createMine, mineView, stepMine } from '../shared/mine.js';
+import type { MineView } from '../shared/mine.js';
+import { IDLE_MOVEMENT } from '../shared/movement.js';
+import type { MovementInput } from '../shared/movement.js';
 import { SEATS } from '../shared/protocol.js';
 import type { Admission, FogClues, PlayerView, RoomPhase, RoomView, Seat } from '../shared/protocol.js';
 import { createRiverRun, riverView, stepRiver } from '../shared/river.js';
@@ -15,14 +23,15 @@ interface Member {
   disconnectedAt: number | null;
   ready: boolean;
   pressedUntil: number;
+  movement: { controls: MovementInput; until: number } | null;
 }
 
 export class Room {
   readonly members: Record<Seat, Member | null> = { left: null, right: null };
-  private run: RiverRun | null = null;
-  private level: RiverLevel = RIVER_ORDER[0];
+  private run: RiverRun | MineView | EggView | null = null;
+  private level: GameLevel = RIVER_ORDER[0];
   private lobbyRevision = 0;
-  private readonly completed = new Set<RiverLevel>();
+  private readonly completed = new Set<GameLevel>();
   private activeAt: number;
 
   constructor(readonly code: string, now: number) {
@@ -32,7 +41,7 @@ export class Room {
   admit(seat: Seat, socketId: string, now: number) {
     this.members[seat] = {
       token: randomBytes(24).toString('base64url'), socketId,
-      disconnectedAt: null, ready: false, pressedUntil: 0,
+      disconnectedAt: null, ready: false, pressedUntil: 0, movement: null,
     };
     this.activeAt = now;
   }
@@ -50,7 +59,7 @@ export class Room {
     member.socketId = socketId;
     member.disconnectedAt = null;
     this.activeAt = now;
-    this.clearPaddles();
+    this.clearInputs();
   }
 
   disconnect(seat: Seat, now: number) {
@@ -58,7 +67,7 @@ export class Room {
     member.socketId = null;
     member.disconnectedAt = now;
     if (!this.run) member.ready = false;
-    this.clearPaddles();
+    this.clearInputs();
   }
 
   expired(now: number, reservationMs: number) {
@@ -68,7 +77,7 @@ export class Room {
     });
   }
 
-  selectLevel(level: RiverLevel, now: number) {
+  selectLevel(level: GameLevel, now: number) {
     if (this.run) return false;
     if (level !== this.level) this.resetLobby(level, now);
     return true;
@@ -84,7 +93,11 @@ export class Room {
         flag: randomInt(2) === 0 ? 'triangle' as const : 'circle' as const,
         channel: randomInt(2) === 0 ? 'upper' as const : 'lower' as const,
       } : undefined;
-      this.run = createRiverRun(this.level, layout);
+      switch (this.level) {
+        case 'mine': this.run = createMine(); break;
+        case 'egg': this.run = createEgg(); break;
+        default: this.run = createRiverRun(this.level, layout);
+      }
     }
     return true;
   }
@@ -105,14 +118,14 @@ export class Room {
   }
 
   shareClue(seat: Seat, now: number) {
-    const fog = this.run?.fog;
+    const fog = this.run?.level === 'fog' ? this.run.fog : null;
     if (!fog || this.phase !== 'playing') return false;
     fog.shared[seat === 'left' ? 0 : 1] = true;
     this.activeAt = now;
     return true;
   }
 
-  private resetLobby(level: RiverLevel, now: number) {
+  private resetLobby(level: GameLevel, now: number) {
     this.level = level;
     this.lobbyRevision++;
     this.run = null;
@@ -120,21 +133,37 @@ export class Room {
     for (const member of Object.values(this.members)) {
       if (member) member.ready = false;
     }
-    this.clearPaddles();
+    this.clearInputs();
   }
 
   paddle(seat: Seat, pressed: boolean, now: number) {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' || usesMovementControls(this.run?.level)) return;
     this.members[seat]!.pressedUntil = pressed ? now + INPUT_LEASE_MS : 0;
+    this.activeAt = now;
+  }
+
+  movementInput(seat: Seat, controls: MovementInput, now: number) {
+    if (this.phase !== 'playing' || !usesMovementControls(this.run?.level)) return;
+    this.members[seat]!.movement = { controls, until: now + INPUT_LEASE_MS };
     this.activeAt = now;
   }
 
   tick(now: number) {
     if (!this.run || this.phase !== 'playing') return;
-    stepRiver(this.run, this.paddles(now));
+    if (this.run.level === 'mine' || this.run.level === 'egg') {
+      const held = (seat: Seat) => {
+        const input = this.members[seat]!.movement;
+        return input && input.until > now ? input.controls : IDLE_MOVEMENT;
+      };
+      const inputs = { left: held('left'), right: held('right') };
+      if (this.run.level === 'mine') stepMine(this.run, inputs);
+      else stepEgg(this.run, inputs);
+    } else {
+      stepRiver(this.run, this.paddles(now));
+    }
     if (this.run.finished) {
       this.completed.add(this.level);
-      this.clearPaddles();
+      this.clearInputs();
     }
   }
 
@@ -151,15 +180,24 @@ export class Room {
     };
     return {
       code: this.code, phase: this.phase, level: this.level, lobbyRevision: this.lobbyRevision,
-      completed: RIVER_ORDER.filter(level => this.completed.has(level)),
+      completed: GAME_LEVELS.filter(level => this.completed.has(level)),
       players: { left: playerView('left'), right: playerView('right') },
-      paddles: this.paddles(now), run: this.run ? riverView(this.run) : null,
+      paddles: this.paddles(now),
+      run: this.runView(),
       clues: this.fogClues(seat),
     };
   }
 
+  private runView(): RoomView['run'] {
+    const run = this.run;
+    if (!run) return null;
+    if (run.level === 'mine') return mineView(run);
+    if (run.level === 'egg') return { ...run, raised: { ...run.raised }, elapsedMs: Math.round(run.elapsedMs) };
+    return riverView(run);
+  }
+
   private fogClues(seat: Seat): FogClues | null {
-    const fog = this.run?.fog;
+    const fog = this.run?.level === 'fog' ? this.run.fog : null;
     if (!fog) return null;
     return {
       own: seat === 'left' ? { kind: 'flag', value: fog.flag } : { kind: 'channel', value: fog.channel },
@@ -173,9 +211,12 @@ export class Room {
       member !== null && member.pressedUntil > now) as Paddles;
   }
 
-  private clearPaddles() {
+  private clearInputs() {
     for (const member of Object.values(this.members)) {
-      if (member) member.pressedUntil = 0;
+      if (member) {
+        member.pressedUntil = 0;
+        member.movement = null;
+      }
     }
   }
 }

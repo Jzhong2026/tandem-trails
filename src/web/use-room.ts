@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { INPUT_REFRESH_MS } from '../shared/protocol.js';
 import type { Ack, Admission, ClientEvents, RoomError, RoomView, Seat, ServerEvents, Session } from '../shared/protocol.js';
+import { usesMovementControls } from '../shared/game-levels.js';
+import type { GameLevel } from '../shared/game-levels.js';
+import { IDLE_MOVEMENT, MOVEMENT_ACTIONS } from '../shared/movement.js';
+import type { MovementAction, MovementInput } from '../shared/movement.js';
 import type { RiverLevel } from '../shared/river-levels.js';
 
 const storageKey = 'tandem-trails.session';
@@ -38,6 +43,7 @@ export function useRoom() {
   const [busy, setBusy] = useState(false);
   const session = useRef(loadSession());
   const commandPending = useRef(false);
+  const movement = useRef<MovementInput>(IDLE_MOVEMENT);
 
   const saveSession = useCallback((next: Session | null) => {
     session.current = next;
@@ -83,9 +89,14 @@ export function useRoom() {
       }
     });
     socket.on('connect_error', () => setConnection('offline'));
-    socket.on('disconnect', () => setConnection('offline'));
+    socket.on('disconnect', () => {
+      movement.current = IDLE_MOVEMENT;
+      setConnection('offline');
+    });
     socket.on('room:view', next => {
-      if (session.current?.code === next.code) setRoom(next);
+      if (session.current?.code !== next.code) return;
+      if (next.phase !== 'playing' || !usesMovementControls(next.run?.level)) movement.current = IDLE_MOVEMENT;
+      setRoom(next);
     });
     socket.on('room:closed', reason => {
       if (!session.current) return;
@@ -93,8 +104,15 @@ export function useRoom() {
       setError(reason === 'left' ? '队友结束了房间。'
         : reason === 'replaced' ? '这一席位已在另一个页面恢复。' : errorMessage.expired);
     });
+    const refresh = window.setInterval(() => {
+      const controls = movement.current;
+      if (socket.connected && MOVEMENT_ACTIONS.some(action => controls[action])) {
+        socket.volatile.emit('game:movement', controls);
+      }
+    }, INPUT_REFRESH_MS);
     socket.connect();
     return () => {
+      window.clearInterval(refresh);
       socket.removeAllListeners();
       socket.disconnect();
     };
@@ -124,15 +142,21 @@ export function useRoom() {
     }
   }, [socket]);
 
+  const movementInput = useCallback((action: MovementAction, pressed: boolean) => {
+    if (movement.current[action] === pressed) return;
+    movement.current = { ...movement.current, [action]: pressed };
+    if (socket.connected) socket.emit('game:movement', movement.current);
+  }, [socket]);
+
   return {
-    room, seat, connection, error, busy, paddle,
+    room, seat, connection, error, busy, paddle, movementInput,
     retry: () => {
       setConnection('connecting');
       socket.disconnect().connect();
     },
     create: () => command<Admission>(() => socket.timeout(timeoutMs).emitWithAck('room:create'), admit),
     join: (code: string) => command<Admission>(() => socket.timeout(timeoutMs).emitWithAck('room:join', code), admit),
-    selectLevel: (level: RiverLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:select-level', level), setRoom),
+    selectLevel: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:select-level', level), setRoom),
     ready: (ready: boolean, lobbyRevision: number) => command<RoomView>(() =>
       socket.timeout(timeoutMs).emitWithAck('room:ready', ready, lobbyRevision), setRoom),
     replay: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:replay'), setRoom),

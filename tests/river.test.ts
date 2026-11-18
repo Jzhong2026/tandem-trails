@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRiverRun, stepRiver, RIVER_TICK_MS } from '../src/shared/river.js';
+import { GAME_TICK_MS } from '../src/shared/game-levels.js';
+import { createRiverRun, stepRiver } from '../src/shared/river.js';
 import type { RiverRun } from '../src/shared/river.js';
 
 function paddle(run: RiverRun, ticks: number, left: boolean, right: boolean) {
@@ -18,7 +19,7 @@ test('one paddle turns in place and both paddles propel the boat', () => {
   const x = run.x;
   paddle(run, 30, false, false);
   assert.equal(run.x, x);
-  assert.ok(run.elapsedMs > RIVER_TICK_MS);
+  assert.ok(run.elapsedMs > GAME_TICK_MS);
 });
 
 test('striking the second obstacle returns to the nearby checkpoint', () => {
