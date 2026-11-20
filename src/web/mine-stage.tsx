@@ -5,6 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { MineCanvas } from './mine-canvas.js';
 import { MovementDeck } from './movement-deck.js';
+import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
 
 type Game = ReturnType<typeof useRoom>;
@@ -51,11 +52,10 @@ export function MineStage({ run, phase, seat, game }: {
     <div className="stage-scene">
       <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <div className="stage-overlay finish">
-        <h2>一起走出矿洞了！</h2>
-        <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯</p>
+      {phase === 'finished' && <FinishOverlay level={run.level} title="一起走出矿洞了！"
+        summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯`}>
         <button className="primary" disabled={disabled} onClick={game.replay}>再玩一次</button>
-      </div>}
+      </FinishOverlay>}
     </div>
     {phase !== 'finished' && <MovementDeck enabled={!disabled && phase === 'playing'}
       onInput={game.movementInput} actionLabel="按住操作机关" keyLabel="操作机关" />}

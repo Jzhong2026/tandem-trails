@@ -6,6 +6,8 @@ import { readyTogether, withCoop } from './co-op.js';
 test('desktop keyboard and phone multitouch trade the lift and deliver the egg after a drop', async ({ browser, baseURL }) => {
   test.setTimeout(50_000);
   await withCoop(browser, baseURL, async ({ host, guest, touch, room }) => {
+    await guest.emulateMedia({ reducedMotion: 'reduce' });
+    await host.emulateMedia({ reducedMotion: 'no-preference' });
     await host.getByRole('combobox', { name: '关卡' }).selectOption('egg');
     await expect(guest.getByText('本轮关卡')).toContainText('摇摇晃晃送龙蛋');
     await readyTogether(host, guest);
@@ -72,6 +74,9 @@ test('desktop keyboard and phone multitouch trade the lift and deliver the egg a
 
     await expect(host.getByRole('heading', { name: '龙蛋回到巢里了！' })).toBeVisible();
     await expect(guest.getByText(/软垫重试 1 次/)).toBeVisible();
+    const lastFrame = await guest.locator('canvas.finish-art').evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
+    const hostArt = host.locator('canvas.finish-art');
+    await expect.poll(() => hostArt.evaluate((canvas: HTMLCanvasElement, expected) => canvas.toDataURL() === expected, lastFrame)).toBe(true);
     await guest.getByRole('button', { name: '再玩一次' }).tap();
     await expect(host.getByRole('option', { name: '摇摇晃晃送龙蛋 · 已通关' })).toHaveCount(1);
   });

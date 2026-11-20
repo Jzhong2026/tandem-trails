@@ -1,0 +1,53 @@
+import { useLayoutEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+import type { GameLevel } from '../shared/game-levels.js';
+import { paintFinish } from './finish-art.js';
+
+const durationMs = 2100;
+
+function FinishIllustration({ level }: { level: GameLevel }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    const target = canvas.current!;
+    const ctx = target.getContext('2d');
+    if (!ctx) return;
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const start = performance.now();
+    let frame = 0;
+    function draw(now: number) {
+      const time = motion.matches ? 1 : Math.min(1, (now - start) / durationMs);
+      ctx!.setTransform(1, 0, 0, 1, 0, 0);
+      ctx!.clearRect(0, 0, target.width, target.height);
+      ctx!.setTransform(3, 0, 0, 3, target.width / 2, target.height / 2);
+      paintFinish(ctx!, level, time);
+      if (time < 1) frame = requestAnimationFrame(draw);
+    }
+    function settle() {
+      if (motion.matches) {
+        cancelAnimationFrame(frame);
+        draw(performance.now());
+      }
+    }
+    draw(start);
+    motion.addEventListener('change', settle);
+    return () => {
+      cancelAnimationFrame(frame);
+      motion.removeEventListener('change', settle);
+    };
+  }, [level]);
+  return <canvas className="finish-art" width={780} height={480} ref={canvas} aria-hidden="true" />;
+}
+
+export function FinishOverlay({ level, title, summary, children }: {
+  level: GameLevel; title: string; summary: string; children: ReactNode;
+}) {
+  const theme = level === 'egg' || level === 'mine' ? level : 'river';
+  return <div className={`finish-scene finish-${theme}`}>
+    <FinishIllustration level={level} />
+    <div className="finish-result">
+      <h2>{title}</h2>
+      <p>{summary}</p>
+      <div className="finish-actions">{children}</div>
+    </div>
+  </div>;
+}

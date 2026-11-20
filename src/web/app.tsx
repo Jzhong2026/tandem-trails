@@ -8,6 +8,7 @@ import type { Channel, Flag } from '../shared/river-levels.js';
 import type { RiverView } from '../shared/river.js';
 import { EggCanvas } from './egg-canvas.js';
 import { EggStage } from './egg-stage.js';
+import { FinishOverlay } from './finish-overlay.js';
 import { MineCanvas } from './mine-canvas.js';
 import { MineStage } from './mine-stage.js';
 import { PaddleButton } from './paddle-button.js';
@@ -181,14 +182,12 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
       {room.phase === 'paused' && <PauseOverlay />}
-      {room.phase === 'finished' && <div className="stage-overlay finish">
-        <h2>{run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}</h2>
-        <p>用时 {Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 {run.collisions} 次</p>
-        <div className="finish-actions">
-          {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
-          <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>
-        </div>
-      </div>}
+      {room.phase === 'finished' && <FinishOverlay level={run.level}
+        title={run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}
+        summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 ${run.collisions} 次`}>
+        {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
+        <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>
+      </FinishOverlay>}
     </div>
     {clues && room.phase !== 'finished' && <FogCluePanel clues={clues}
       disabled={disabled || room.phase !== 'playing'} onShare={game.shareClue} />}
