@@ -14,7 +14,13 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 280px; min-height: 100vh; }
+body {
+  margin: 0; min-width: 280px; min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 83% 23%, #28565975, transparent 52%),
+    radial-gradient(ellipse at 7% 92%, #5b48323b, transparent 43%),
+    linear-gradient(145deg, #152e2e, #102225 67%, #111f23);
+}
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.48; cursor: default; }
@@ -54,7 +60,7 @@ h1, h2, p, figure { margin: 0; }
 }
 .network { display: flex; align-items: center; gap: 8px; color: var(--light); font-size: 0.85rem; white-space: nowrap; }
 .network::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #e5ad77; }
-.network.online::before { background: #9cddb7; }
+.network.online::before { background: #a7efcc; box-shadow: 0 0 9px #8ee9bd70; }
 
 main { padding-bottom: 42px; }
 .home, .room-layout {
@@ -114,7 +120,7 @@ input::placeholder { color: #a6b5a7; }
   border-radius: 18px;
   overflow: hidden;
   background: #243c32;
-  box-shadow: 0 24px 45px #101f1990;
+  box-shadow: 0 26px 56px #07151885, 0 0 36px #65d5c414;
 }
 .river-canvas { display: block; width: 100%; aspect-ratio: 5 / 2; background: #397b76; }
 .river-card figcaption { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 19px 24px 22px; }
@@ -163,7 +169,7 @@ input::placeholder { color: #a6b5a7; }
   font-size: 0.9rem;
 }
 progress { width: clamp(55px, 16vw, 150px); height: 10px; accent-color: var(--mint); }
-.stage-scene { position: relative; border: 1px solid #668777; border-radius: 13px; overflow: hidden; }
+.stage-scene { position: relative; border: 1px solid #739d92; border-radius: 13px; overflow: hidden; box-shadow: 0 18px 42px #08171870; }
 .stage-overlay {
   position: absolute;
   inset: 0;

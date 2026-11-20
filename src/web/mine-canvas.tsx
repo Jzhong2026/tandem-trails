@@ -3,6 +3,7 @@ import type { MineView } from '../shared/mine.js';
 import type { Seat } from '../shared/protocol.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
 import { interpolateMine } from './panorama-motion.js';
+import { animationSeconds, halo as glow, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createMine();
@@ -13,14 +14,6 @@ function block(ctx: Context, x: number, y: number, w: number, h: number, color: 
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
   ctx.fill();
-}
-
-function glow(ctx: Context, x: number, y: number, radius: number, color: string) {
-  const light = ctx.createRadialGradient(x, y, 0, x, y, radius);
-  light.addColorStop(0, color);
-  light.addColorStop(1, '#0000');
-  ctx.fillStyle = light;
-  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
 }
 
 function floor(ctx: Context, from: number, to: number, y: number) {
@@ -34,10 +27,37 @@ function floor(ctx: Context, from: number, to: number, y: number) {
 function paintLayout(ctx: Context) {
   const { width, height, bridge, lift, upperY, lowerY, exit } = MINE;
   const cave = ctx.createLinearGradient(0, 0, 0, height);
-  cave.addColorStop(0, '#17192b');
-  cave.addColorStop(1, '#262338');
+  cave.addColorStop(0, '#10152a');
+  cave.addColorStop(.48, '#254056');
+  cave.addColorStop(1, '#251b36');
   ctx.fillStyle = cave;
   ctx.fillRect(0, 0, width, height);
+  for (let i = 0; i < 6; i++) {
+    const x = i * 177 + 42;
+    const shaft = ctx.createLinearGradient(x, 0, x + 78, 294);
+    shaft.addColorStop(0, '#a3baff39');
+    shaft.addColorStop(1, '#81e9eb00');
+    ctx.fillStyle = shaft;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 16, 0);
+    ctx.lineTo(x + 178, 322);
+    ctx.lineTo(x + 67, 322);
+    ctx.fill();
+  }
+  for (let cluster = 0; cluster < 10; cluster++) {
+    const x = 20 + cluster * 107;
+    const y = cluster % 2 ? lowerY + 36 : 373;
+    const violet = cluster % 3 === 0;
+    glow(ctx, x, y - 14, 43, violet ? '#9b71ef57' : '#45e8d85a');
+    for (let shard = -1; shard <= 1; shard++) {
+      const base = x + shard * 11;
+      const tip = base + shard * 13;
+      const top = y - 25 - (cluster * 13 + (shard + 1) * 19) % 39;
+      polygon(ctx, violet ? '#7863ae' : '#378f9f', [[base - 7, y], [tip - 4, top + 7], [tip, top], [tip + 7, top + 8], [base + 8, y]]);
+      polygon(ctx, violet ? '#c8a2f1' : '#8ee4dd', [[base - 3, y], [tip, top], [tip + 7, top + 8]]);
+    }
+  }
   for (let i = 0; i < 27; i++) {
     const x = i * 41;
     const depth = 18 + (i * 47) % 59;
@@ -74,6 +94,29 @@ function paintSwitch(ctx: Context, x: number, y: number, color: string, active: 
 
 function paintRun(ctx: Context, run: MineView, seat: Seat) {
   const { bridge, lift, lowerY, upperY, fireflies, exit } = MINE;
+  const seconds = animationSeconds(run.elapsedMs);
+  for (const [switchX, targetX, y, targetY, active, color] of [
+    [bridge.switchX, bridge.start, lowerY, upperY, run.bridgeOpen, '#b4f29c'],
+    [lift.switchX, lift.x, upperY, minerY(run, 'left'), run.liftHeld, '#ffd189'],
+  ] as const) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(switchX, y + 3);
+    ctx.lineTo(switchX, y + 20);
+    ctx.lineTo(targetX, y + 20);
+    ctx.lineTo(targetX, targetY + 4);
+    ctx.strokeStyle = '#9185a553';
+    ctx.stroke();
+    if (active) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 11]);
+      ctx.lineDashOffset = -seconds * 25;
+      ctx.stroke();
+      glow(ctx, targetX, targetY, 29, color + '66');
+    }
+    ctx.restore();
+  }
   if (run.bridgeOpen) {
     block(ctx, bridge.start, upperY, bridge.end - bridge.start, 11, '#886548');
     for (let x = bridge.start + 3; x < bridge.end - 7; x += 13) {
@@ -91,12 +134,25 @@ function paintRun(ctx: Context, run: MineView, seat: Seat) {
   for (const role of ['left', 'right'] as const) {
     const targetY = (role === 'left' ? lowerY : upperY) - 34;
     if (!run.players[role].firefly) {
-      glow(ctx, fireflies[role], targetY, 23, '#f6d376a0');
-      block(ctx, fireflies[role] - 4, targetY - 4, 8, 8, '#ffe6a3', 4);
+      const x = fireflies[role] + Math.sin(seconds * 2) * 4;
+      const y = targetY + Math.cos(seconds * 2.8) * 4;
+      glow(ctx, x, y, 30, '#ffe086b8');
+      block(ctx, x - 6, y - 5, 5, 3, '#def9dcc9');
+      block(ctx, x + 1, y - 5, 5, 3, '#def9dcc9');
+      block(ctx, x - 3, y - 3, 6, 7, '#fff2ae', 3);
     }
     const { x } = run.players[role];
     const y = minerY(run, role);
     const color = colors[role];
+    const beam = ctx.createLinearGradient(x + 8, 0, x + 92, 0);
+    beam.addColorStop(0, '#ffe5a06b');
+    beam.addColorStop(1, '#ffdca300');
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(x + 10, y - 26);
+    ctx.lineTo(x + 92, y - 40);
+    ctx.lineTo(x + 92, y + 1);
+    ctx.fill();
     glow(ctx, x + 12, y - 25, 29, '#ffdc833d');
     block(ctx, x - 9, y - 19, 18, 18, color, 5);
     block(ctx, x - 10, y - 31, 20, 13, color, 6);

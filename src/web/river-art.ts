@@ -1,6 +1,7 @@
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
+import { animationSeconds, halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
 
@@ -45,12 +46,30 @@ function bank(ctx: Context, bottom: boolean, width: number, height: number) {
 export function paintRiver(ctx: Context, level: RiverLevel) {
   const { width, height } = RIVER_SIZE;
   const { logs, start, dock, buoys } = RIVER_COURSES[level];
-  const water = ctx.createLinearGradient(0, 46, 0, height - 38);
-  water.addColorStop(0, '#447e78');
-  water.addColorStop(0.57, '#397b76');
-  water.addColorStop(1, '#2e6865');
+  const water = ctx.createLinearGradient(0, 0, width, height);
+  water.addColorStop(0, '#136b74');
+  water.addColorStop(.28, '#105470');
+  water.addColorStop(.52, '#178e93');
+  water.addColorStop(.78, '#12576b');
+  water.addColorStop(1, '#174659');
   ctx.fillStyle = water;
   ctx.fillRect(0, 0, width, height);
+
+  // Long, broken bands follow the same current as the small surface glints.
+  for (let i = 0; i < 26; i++) {
+    const y = i * 17 - 22;
+    const phase = Math.sin(i * .65) * 80;
+    ctx.beginPath();
+    ctx.moveTo(-20, y);
+    ctx.bezierCurveTo(280, y - 68 + phase, 390, y + 56, 598, y + 15);
+    ctx.bezierCurveTo(774, y - 36, 871, y - 18 + phase, 1020, y + 9);
+    ctx.lineTo(1020, y + 11);
+    ctx.bezierCurveTo(824, y - 21 + phase, 713, y + 4, 596, y + 22);
+    ctx.bezierCurveTo(371, y + 73, 248, y - 68 + phase, -20, y + 3);
+    ctx.fillStyle = i % 4 ? '#8ef9d813' : '#a8fff42b';
+    ctx.fill();
+  }
+  halo(ctx, 682, 152, 194, '#68ffd834');
 
   for (let i = 0; i < 135; i++) {
     const x = ((i * 389) % 1009) - 10;
@@ -65,6 +84,17 @@ export function paintRiver(ctx: Context, level: RiverLevel) {
   }
   bank(ctx, false, width, height);
   bank(ctx, true, width, height);
+
+  // Reeds, stones and small flowers break up the two shore silhouettes.
+  for (let i = 0; i < 74; i++) {
+    const x = (i * 163) % width;
+    const side = i % 2 ? 1 : -1;
+    const edge = 41 + 8 * Math.sin(x / 70) + i % 12;
+    const y = side === 1 ? edge : height - edge;
+    ellipse(ctx, x, y, 6 + i % 6, 3, '#153d4299');
+    ellipse(ctx, x - 1, y - 1, 5 + i % 6, 2.2, i % 3 ? '#9fab80' : '#d2c699');
+    polygon(ctx, '#aed17a', [[x, y], [x - 5, y - 10], [x + 2, y - 2], [x + 5, y - 15], [x + 4, y]]);
+  }
 
   for (const buoy of buoys) {
     ellipse(ctx, buoy.x, buoy.y + 5, 12, 4, '#cde2cf55');
@@ -183,6 +213,7 @@ function paintDuck(ctx: Context, x: number, y: number, size = 1) {
 }
 
 export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
+  const seconds = animationSeconds(run.elapsedMs);
   const duck = RIVER_COURSES[run.level].duck;
   if (duck && !run.rescued) {
     const { x, y } = duck;
@@ -195,10 +226,28 @@ export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
   ctx.translate(run.x, run.y);
   ctx.rotate(run.heading);
   if (run.recoveryMs > 0) ctx.globalAlpha = 0.65;
+  for (const [index, side] of [-1, 1].entries()) {
+    if (!paddles[index]) continue;
+    const moving = paddles[0] && paddles[1];
+    const tint = index === 0 ? '#ffdfa7' : '#aaffed';
+    ctx.save();
+    ctx.strokeStyle = tint;
+    for (let i = 0; i < 5; i++) {
+      const age = (seconds * 1.32 + i / 5) % 1;
+      const x = -8 - age * (moving ? 83 : 14);
+      const y = side * (21 + age * (moving ? 11 : 7));
+      ctx.globalAlpha = (1 - age) * .82;
+      ctx.lineWidth = 2.4 - age;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 4 + age * 13, 2 + age * 5, side * .14, .18, 5.1);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   ellipse(ctx, -4, 5, 37, 15, '#23494480');
   for (const [index, side] of [-1, 1].entries()) {
     ctx.save();
-    ctx.rotate(paddles[index] ? side * -0.38 : side * 0.12);
+    ctx.rotate(paddles[index] ? side * (-.35 + .43 * Math.sin(seconds * 8)) : side * .12);
     roundRect(ctx, -8, side < 0 ? -25 : 7, 3.5, 19, 1.5, '#e2c795');
     ellipse(ctx, -6, side * 24, 4, 8, index === 0 ? '#f2af74' : '#b2e0cf');
     ctx.restore();
@@ -207,6 +256,10 @@ export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
   ellipse(ctx, 0, -1, 28, 11.5, '#e6ab6b');
   ellipse(ctx, 0, 0, 23, 8.4, '#a55a3d');
   roundRect(ctx, -8, -9, 4, 18, 1, '#efbd86');
+  for (const [i, x] of [-14, 0].entries()) {
+    ellipse(ctx, x, 0, 5.4, 6.3, i ? '#96e6cc' : '#ffd199');
+    ellipse(ctx, x + 1, -1, 3.3, 3.7, '#69504a');
+  }
   if (run.rescued) paintDuck(ctx, 13, 0, 0.67);
   ctx.restore();
 }
