@@ -1,5 +1,6 @@
-import { createEgg, EGG, eggGroundY } from '../shared/egg.js';
-import type { EggView } from '../shared/egg.js';
+import { createEgg, EGG_LAYOUTS, eggGroundY } from '../shared/egg.js';
+import type { EggLayout, EggView, EggWind } from '../shared/egg.js';
+import type { EggLevel } from '../shared/game-levels.js';
 import type { Seat } from '../shared/protocol.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
 import { interpolateEgg } from './panorama-motion.js';
@@ -16,24 +17,36 @@ function ellipse(ctx: Context, x: number, y: number, rx: number, ry: number, col
   ctx.fill();
 }
 
-function terrain(ctx: Context, color: string, yOffset: number) {
+function terrain(ctx: Context, color: string, yOffset: number, level: EggLevel) {
+  const { width, height } = EGG_LAYOUTS[level];
   ctx.beginPath();
-  ctx.moveTo(0, EGG.height);
-  for (let x = 0; x <= EGG.width; x += 5) ctx.lineTo(x, eggGroundY(x) + yOffset);
-  ctx.lineTo(EGG.width, EGG.height);
+  ctx.moveTo(0, height);
+  for (let x = 0; x <= width; x += 5) ctx.lineTo(x, eggGroundY(x, level) + yOffset);
+  ctx.lineTo(width, height);
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
 }
 
-function paintLayout(ctx: Context) {
-  const sky = ctx.createLinearGradient(0, 0, 0, EGG.height);
+function signPost(ctx: Context, x: number, y: number, text: string, board: string, ink: string) {
+  ctx.fillStyle = '#696147';
+  ctx.fillRect(x, y - 48, 3, 48);
+  ellipse(ctx, x + 2, y - 51, 30, 14, board);
+  ctx.fillStyle = ink;
+  ctx.font = 'bold 14px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x + 2, y - 46);
+}
+
+function paintLayout(ctx: Context, level: EggLevel) {
+  const layout = EGG_LAYOUTS[level];
+  const sky = ctx.createLinearGradient(0, 0, 0, layout.height);
   sky.addColorStop(0, '#273458');
   sky.addColorStop(.32, '#926e90');
   sky.addColorStop(.61, '#f4b89c');
   sky.addColorStop(1, '#ffd595');
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, EGG.width, EGG.height);
+  ctx.fillRect(0, 0, layout.width, layout.height);
   for (let i = 0; i < 56; i++) {
     ellipse(ctx, i * 197 % 997, i * 47 % 112, .7 + i % 3 * .25, .9, '#ffe6ca9c');
   }
@@ -57,50 +70,72 @@ function paintLayout(ctx: Context) {
         [x - 12, y + 8], [x, y - h], [x + 12, y + 5], [x + 8, y + 1], [x + 20, y + 26], [x + 23, 322]]);
     }
   }
-  terrain(ctx, '#9cab72', 0);
-  terrain(ctx, '#566a59', 6);
-  terrain(ctx, '#373c48', 16);
+  terrain(ctx, '#9cab72', 0, level);
+  terrain(ctx, '#566a59', 6, level);
+  terrain(ctx, '#373c48', 16, level);
   for (let i = 0; i < 100; i++) {
-    const x = (i * 139) % EGG.width;
-    const y = eggGroundY(x) + 24 + (i * 91) % 95;
+    const x = (i * 139) % layout.width;
+    const y = eggGroundY(x, level) + 24 + (i * 91) % 95;
     ellipse(ctx, x, y, 3 + (i % 7), 2, i % 2 ? '#735d48' : '#806251');
   }
-  for (const pad of [EGG.start, ...EGG.slopes.map(slope => slope.pad)]) {
-    ellipse(ctx, pad, eggGroundY(pad) + 1, 27, 9, '#725943');
-    ellipse(ctx, pad, eggGroundY(pad) - 2, 25, 7, '#edba79');
+  for (const pad of [layout.start, ...layout.slopes.map(slope => slope.pad), ...layout.winds.map(wind => wind.pad)]) {
+    ellipse(ctx, pad, eggGroundY(pad, level) + 1, 27, 9, '#725943');
+    ellipse(ctx, pad, eggGroundY(pad, level) - 2, 25, 7, '#edba79');
   }
-  for (const { from, low } of EGG.slopes) {
-    ctx.fillStyle = '#696147';
-    ctx.fillRect(from, eggGroundY(from) - 48, 3, 48);
-    ellipse(ctx, from + 2, eggGroundY(from) - 51, 29, 14, '#27463e');
-    ctx.fillStyle = '#ffedc9';
-    ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(low === 'left' ? '抬左端' : '抬右端', from + 2, eggGroundY(from) - 46);
+  for (const { from, low } of layout.slopes) {
+    signPost(ctx, from, eggGroundY(from, level), low === 'left' ? '抬左端' : '抬右端', '#27463e', '#ffedc9');
   }
-  const nestY = eggGroundY(EGG.exit);
-  ellipse(ctx, EGG.exit + 5, nestY - 5, 38, 12, '#75533b');
-  ellipse(ctx, EGG.exit + 5, nestY - 11, 32, 8, '#c0935c');
+  for (const wind of layout.winds) {
+    signPost(ctx, wind.from, eggGroundY(wind.from, level), '一起扶稳', '#2b5a5e', '#e8fbff');
+  }
+  const nestY = eggGroundY(layout.exit, level);
+  ellipse(ctx, layout.exit + 5, nestY - 5, 38, 12, '#75533b');
+  ellipse(ctx, layout.exit + 5, nestY - 11, 32, 8, '#c0935c');
   for (let i = -3; i <= 3; i++) {
     ctx.strokeStyle = '#edcc8f';
     ctx.beginPath();
-    ctx.moveTo(EGG.exit + i * 7, nestY - 9);
-    ctx.lineTo(EGG.exit + i * 8 + 7, nestY - 3);
+    ctx.moveTo(layout.exit + i * 7, nestY - 9);
+    ctx.lineTo(layout.exit + i * 8 + 7, nestY - 3);
     ctx.stroke();
   }
 }
 
+function windStreaks(ctx: Context, wind: EggWind, level: EggLevel, seconds: number, active: boolean) {
+  const span = wind.to - wind.from;
+  const gy = eggGroundY((wind.from + wind.to) / 2, level);
+  ctx.save();
+  ctx.strokeStyle = active ? '#e8fbffc9' : '#e8fbff59';
+  ctx.lineWidth = active ? 2.4 : 1.6;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 8; i++) {
+    const t = ((seconds * (62 + i * 13) + i * 47) % span + span) % span;
+    const x = wind.dir > 0 ? wind.from + t : wind.to - t;
+    const y = gy - 26 - (i * 19) % 56;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + wind.dir * 15, y - 5, x + wind.dir * 30, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function paintRun(ctx: Context, run: EggView, seat: Seat) {
+  const level = run.level;
+  const layout: EggLayout = EGG_LAYOUTS[level];
+  const seconds = animationSeconds(run.elapsedMs);
+  for (const wind of layout.winds) {
+    windStreaks(ctx, wind, level, seconds, run.x >= wind.from && run.x < wind.to);
+  }
   const { x } = run;
-  const y = eggGroundY(x);
-  const boardY = (eggGroundY(x - 43) + eggGroundY(x + 43)) / 2 - 27;
+  const y = eggGroundY(x, level);
+  const boardY = (eggGroundY(x - 43, level) + eggGroundY(x + 43, level)) / 2 - 27;
   const angle = -run.tilt * .37;
-  ellipse(ctx, run.checkpoint, eggGroundY(run.checkpoint) - 2, 21, 4, '#ffe1a4');
+  ellipse(ctx, run.checkpoint, eggGroundY(run.checkpoint, level) - 2, 21, 4, '#ffe1a4');
   if (!run.finished) {
     for (const role of ['left', 'right'] as const) {
       const side = role === 'left' ? -1 : 1;
       const playerX = x + side * 49;
-      const feet = eggGroundY(playerX);
+      const feet = eggGroundY(playerX, level);
       ellipse(ctx, playerX, feet - 12, 10, 14, roleColors[role]);
       ellipse(ctx, playerX, feet - 30, 9, 9, '#f4dbb0');
       const handX = x + Math.cos(angle) * side * 43;
@@ -126,7 +161,6 @@ function paintRun(ctx: Context, run: EggView, seat: Seat) {
     ctx.fill();
   }
   const roll = run.finished ? 0 : -run.roll * 31;
-  const seconds = animationSeconds(run.elapsedMs);
   const slipping = Math.abs(run.roll) > .62;
   const balanced = (run.raised.left || run.raised.right) && Math.abs(run.tilt) < .15;
   halo(ctx, roll, -18, balanced ? 48 : 32, slipping ? '#ff834f9c' : '#ffe5a594');
@@ -153,9 +187,12 @@ function paintRun(ctx: Context, run: EggView, seat: Seat) {
   ctx.restore();
 }
 
+const paintEggLayout = (ctx: Context) => paintLayout(ctx, 'egg');
+const paintGustLayout = (ctx: Context) => paintLayout(ctx, 'egg2');
 const focusX = (run: EggView) => run.x;
 
 export function EggCanvas({ run = preview, seat, frozen = false }: { run?: EggView; seat: Seat; frozen?: boolean }) {
-  return <PanoramaCanvas run={run} seat={seat} world={EGG} focusX={focusX}
-    paintLayout={paintLayout} paintRun={paintRun} theme="egg-canvas" frozen={frozen} interpolate={interpolateEgg} />;
+  return <PanoramaCanvas run={run} seat={seat} world={EGG_LAYOUTS[run.level]} focusX={focusX}
+    paintLayout={run.level === 'egg2' ? paintGustLayout : paintEggLayout} paintRun={paintRun}
+    theme="egg-canvas" frozen={frozen} interpolate={interpolateEgg} />;
 }

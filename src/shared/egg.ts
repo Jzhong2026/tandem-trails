@@ -1,6 +1,27 @@
 import { GAME_TICK_MS } from './game-levels.js';
+import type { EggLevel } from './game-levels.js';
 import { movementDirection } from './movement.js';
 import type { MovementInputs } from './movement.js';
+import type { Seat } from './protocol.js';
+
+export interface EggSlope { from: number; to: number; low: Seat; pad: number }
+export interface EggWind { from: number; to: number; dir: 1 | -1; pad: number }
+export interface EggLayout {
+  width: number;
+  height: number;
+  start: number;
+  exit: number;
+  groundY: number;
+  summitHeight: number;
+  carrySpeed: number;
+  rollRate: number;
+  settleRate: number;
+  recoveryMs: number;
+  slopes: readonly EggSlope[];
+  winds: readonly EggWind[];
+}
+
+export const WIND = { tilt: 1.6, speed: .62 } as const;
 
 export const EGG = {
   width: 1000,
@@ -17,10 +38,34 @@ export const EGG = {
     { from: 255, to: 430, low: 'left', pad: 204 },
     { from: 620, to: 805, low: 'right', pad: 566 },
   ],
-} as const;
+  winds: [],
+} as const satisfies EggLayout;
+
+export const EGG2 = {
+  width: 1000,
+  height: 400,
+  start: 105,
+  exit: 940,
+  groundY: 296,
+  summitHeight: 72,
+  carrySpeed: 126,
+  rollRate: .92,
+  settleRate: 3.5,
+  recoveryMs: 750,
+  slopes: [
+    { from: 235, to: 395, low: 'left', pad: 180 },
+    { from: 600, to: 760, low: 'right', pad: 545 },
+  ],
+  winds: [
+    { from: 430, to: 560, dir: 1, pad: 410 },
+    { from: 800, to: 905, dir: -1, pad: 780 },
+  ],
+} as const satisfies EggLayout;
+
+export const EGG_LAYOUTS: Record<EggLevel, EggLayout> = { egg: EGG, egg2: EGG2 };
 
 export interface EggView {
-  level: 'egg';
+  level: EggLevel;
   x: number;
   roll: number;
   tilt: number;
@@ -32,9 +77,10 @@ export interface EggView {
   elapsedMs: number;
 }
 
-export function createEgg(): EggView {
+export function createEgg(level: EggLevel = 'egg'): EggView {
+  const start = EGG_LAYOUTS[level].start;
   return {
-    level: 'egg', x: EGG.start, roll: 0, tilt: 0, drops: 0, checkpoint: EGG.start,
+    level, x: start, roll: 0, tilt: 0, drops: 0, checkpoint: start,
     raised: { left: false, right: false }, recoveryMs: 0, finished: false, elapsedMs: 0,
   };
 }
@@ -43,15 +89,23 @@ export function eggView(run: EggView): EggView {
   return { ...run, raised: { ...run.raised }, elapsedMs: Math.round(run.elapsedMs) };
 }
 
-export function eggSlope(x: number) {
-  return EGG.slopes.find(slope => x >= slope.from && x < slope.to);
+export function isEggView(run: { level: string } | null | undefined): run is EggView {
+  return run != null && (run.level === 'egg' || run.level === 'egg2');
 }
 
-export function eggGroundY(x: number) {
-  const [up, down] = EGG.slopes;
+export function eggSlope(x: number, level: EggLevel = 'egg') {
+  return EGG_LAYOUTS[level].slopes.find(slope => x >= slope.from && x < slope.to);
+}
+
+export function eggWind(x: number, level: EggLevel = 'egg') {
+  return EGG_LAYOUTS[level].winds.find(wind => x >= wind.from && x < wind.to);
+}
+
+export function eggGroundY(x: number, level: EggLevel = 'egg') {
+  const [up, down] = EGG_LAYOUTS[level].slopes;
   const ascent = Math.max(0, Math.min(1, (x - up.from) / (up.to - up.from)));
   const descent = Math.max(0, Math.min(1, (x - down.from) / (down.to - down.from)));
-  return EGG.groundY - EGG.summitHeight * (ascent - descent);
+  return EGG_LAYOUTS[level].groundY - EGG_LAYOUTS[level].summitHeight * (ascent - descent);
 }
 
 const seconds = GAME_TICK_MS / 1000;
@@ -65,26 +119,32 @@ export function stepEgg(run: EggView, inputs: MovementInputs) {
     return;
   }
 
-  const slope = eggSlope(run.x);
+  const layout = EGG_LAYOUTS[run.level];
+  const slope = eggSlope(run.x, run.level);
+  const wind = eggWind(run.x, run.level);
+  const braced = run.raised.left && run.raised.right;
   const slopeTilt = slope ? (slope.low === 'left' ? 1 : -1) : 0;
-  run.tilt = slopeTilt + Number(run.raised.right) - Number(run.raised.left);
+  // A wind gap can only be steadied by both players bracing together; one alone cannot hold it.
+  run.tilt = wind ? (braced ? 0 : wind.dir * WIND.tilt)
+    : slopeTilt + Number(run.raised.right) - Number(run.raised.left);
   const direction = movementDirection(inputs.left);
   if (direction && direction === movementDirection(inputs.right)) {
-    const x = Math.max(EGG.start, Math.min(EGG.exit, run.x + direction * EGG.carrySpeed * seconds));
-    if (x !== run.x) run.roll += run.tilt * EGG.rollRate * seconds;
+    const speed = layout.carrySpeed * (wind && braced ? WIND.speed : 1);
+    const x = Math.max(layout.start, Math.min(layout.exit, run.x + direction * speed * seconds));
+    if (x !== run.x) run.roll += run.tilt * layout.rollRate * seconds;
     run.x = x;
   }
   // A level stretcher can settle even while the players stop to coordinate.
-  if (run.tilt === 0) run.roll *= 1 - EGG.settleRate * seconds;
-  const pad = EGG.slopes.findLast(section => section.pad <= run.x)?.pad;
+  if (run.tilt === 0) run.roll *= 1 - layout.settleRate * seconds;
+  const pad = [...layout.slopes, ...layout.winds].findLast(section => section.pad <= run.x)?.pad;
   if (pad !== undefined) run.checkpoint = Math.max(run.checkpoint, pad);
   if (Math.abs(run.roll) >= 1) {
     run.x = run.checkpoint;
     run.roll = 0;
     run.tilt = 0;
     run.drops++;
-    run.recoveryMs = EGG.recoveryMs;
+    run.recoveryMs = layout.recoveryMs;
     return;
   }
-  run.finished = run.x === EGG.exit;
+  run.finished = run.x === layout.exit;
 }

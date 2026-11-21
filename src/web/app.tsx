@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, GAME_LEVELS, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE } from '../shared/game-levels.js';
+import {
+  EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, EGG2_LEVEL_TITLE, EGG2_SUMMARY, GAME_LEVELS,
+  isEggLevel, isMineLevel, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE, MINE2_LEVEL_TITLE, MINE2_SUMMARY,
+} from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
-import { normalizeRoomCode, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
+import { createEgg, isEggView } from '../shared/egg.js';
+import { createMine, isMineView } from '../shared/mine.js';
+import { normalizeRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
 import type { FogClues, RoomView, Seat } from '../shared/protocol.js';
 import { nextRiverLevel, RIVER_COURSES } from '../shared/river-levels.js';
 import type { Channel, Flag } from '../shared/river-levels.js';
@@ -23,13 +28,15 @@ const channelName: Record<Channel, string> = { upper: '↑ 靠上岸的水路', 
 
 function courseInfo(level: GameLevel) {
   if (level === 'mine') return { title: MINE_TITLE, summary: MINE_SUMMARY, chapter: MINE_LEVEL_TITLE };
+  if (level === 'mine2') return { title: MINE_TITLE, summary: MINE2_SUMMARY, chapter: MINE2_LEVEL_TITLE };
   if (level === 'egg') return { title: EGG_TITLE, summary: EGG_SUMMARY, chapter: EGG_LEVEL_TITLE };
+  if (level === 'egg2') return { title: EGG_TITLE, summary: EGG2_SUMMARY, chapter: EGG2_LEVEL_TITLE };
   return { ...RIVER_COURSES[level], chapter: '双桨救援队' };
 }
 
 function roleName(level: GameLevel, seat: Seat) {
-  if (level === 'mine') return seat === 'left' ? '下层' : '上层';
-  if (level === 'egg') return seat === 'left' ? '左端' : '右端';
+  if (isMineLevel(level)) return seat === 'left' ? '下层' : '上层';
+  if (isEggLevel(level)) return seat === 'left' ? '左端' : '右端';
   return seatName[seat];
 }
 
@@ -39,6 +46,11 @@ export function App() {
     new URLSearchParams(window.location.search).get('room') ?? '',
   ).slice(0, ROOM_CODE_LENGTH));
   const online = game.connection === 'online';
+  const invalidLetters = [...new Set([...code].filter(letter => !ROOM_CODE_ALPHABET.includes(letter)))];
+  const codeHint = !code || validRoomCode(code) ? ''
+    : invalidLetters.length > 0
+      ? `房间码不含 ${invalidLetters.map(letter => letter === ' ' ? '空格' : letter).join('、')}，请核对后重新输入。`
+      : '房间码需要 6 位，请补全后再加入。';
 
   return <div className="shell">
     <header className="site-header">
@@ -56,9 +68,9 @@ export function App() {
       {game.room && game.seat
         ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
-          : game.room.run.level === 'mine'
+          : isMineView(game.room.run)
             ? <MineStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
-            : game.room.run.level === 'egg'
+            : isEggView(game.room.run)
               ? <EggStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
               : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
         : <section className="home">
@@ -74,9 +86,11 @@ export function App() {
               <div className="join-row">
                 <input id="room-code" name="room-code" value={code} placeholder="6 位字母或数字"
                   autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                  aria-invalid={codeHint !== ''} aria-describedby={codeHint ? 'room-code-hint' : undefined}
                   maxLength={ROOM_CODE_LENGTH} onChange={event => setCode(normalizeRoomCode(event.target.value))} />
                 <button type="submit" className="secondary" disabled={!online || game.busy || !validRoomCode(code)}>加入房间</button>
               </div>
+              {codeHint && <p className="assist" id="room-code-hint">{codeHint}</p>}
             </form>
           </div>
           <CourseCard level="bend" />
@@ -88,7 +102,9 @@ export function App() {
 function CourseCard({ level }: { level: GameLevel }) {
   const course = courseInfo(level);
   return <figure className="river-card">
-    {level === 'mine' ? <MineCanvas seat="left" /> : level === 'egg' ? <EggCanvas seat="left" /> : <RiverCanvas level={level} />}
+    {isMineLevel(level) ? <MineCanvas seat="left" run={createMine(level)} />
+      : isEggLevel(level) ? <EggCanvas seat="left" run={createEgg(level)} />
+        : <RiverCanvas level={level} />}
     <figcaption>
       <div><span className="chapter">{course.chapter}</span><strong>{course.title}</strong></div>
       <span className="player-count">2 人合作</span>

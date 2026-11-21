@@ -7,7 +7,6 @@ import { usesMovementControls } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { IDLE_MOVEMENT, MOVEMENT_ACTIONS } from '../shared/movement.js';
 import type { MovementAction, MovementInput } from '../shared/movement.js';
-import type { RiverLevel } from '../shared/river-levels.js';
 
 const storageKey = 'tandem-trails.session';
 const timeoutMs = 4500;
@@ -160,7 +159,7 @@ export function useRoom() {
     ready: (ready: boolean, lobbyRevision: number) => command<RoomView>(() =>
       socket.timeout(timeoutMs).emitWithAck('room:ready', ready, lobbyRevision), setRoom),
     replay: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:replay'), setRoom),
-    next: (level: RiverLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:next', level), setRoom),
+    next: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:next', level), setRoom),
     shareClue: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('game:share-clue'), setRoom),
     leave: () => command<null>(() => socket.timeout(timeoutMs).emitWithAck('room:leave'), reset),
   };

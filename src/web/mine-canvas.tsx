@@ -1,4 +1,4 @@
-import { createMine, minerY, MINE } from '../shared/mine.js';
+import { createMine, minerY, MINE, MINE2 } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
 import type { Seat } from '../shared/protocol.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
@@ -24,8 +24,7 @@ function floor(ctx: Context, from: number, to: number, y: number) {
   }
 }
 
-function paintLayout(ctx: Context) {
-  const { width, height, bridge, lift, upperY, lowerY, exit } = MINE;
+function caveBackdrop(ctx: Context, width: number, height: number, lowerY: number) {
   const cave = ctx.createLinearGradient(0, 0, 0, height);
   cave.addColorStop(0, '#10152a');
   cave.addColorStop(.48, '#254056');
@@ -72,17 +71,11 @@ function paintLayout(ctx: Context) {
   for (let i = 0; i < 85; i++) {
     block(ctx, (i * 181) % width, 50 + (i * 41) % 330, 3 + i % 5, 2, '#a69fb222');
   }
-  floor(ctx, 45, bridge.start + 2, upperY);
-  floor(ctx, bridge.end - 2, lift.x - 24, upperY);
-  floor(ctx, lift.x + 23, 960, upperY);
-  floor(ctx, 45, lift.x + 25, lowerY);
-  block(ctx, lift.x - 22, upperY + 3, 44, lowerY - upperY - 2, '#57413d42', 0);
-  for (const offset of [-20, 20]) {
-    block(ctx, lift.x + offset - 1, upperY - 35, 2, lowerY - upperY + 35, '#ad86616b', 1);
-  }
-  block(ctx, exit - 1, upperY - 68, 52, 68, '#483a4d', 24);
-  block(ctx, exit + 7, upperY - 59, 36, 58, '#201b2d', 17);
-  block(ctx, 0, 378, width, 22, '#1b182a', 0);
+}
+
+function doorway(ctx: Context, exit: number, y: number) {
+  block(ctx, exit - 1, y - 68, 52, 68, '#483a4d', 24);
+  block(ctx, exit + 7, y - 59, 36, 58, '#201b2d', 17);
 }
 
 function paintSwitch(ctx: Context, x: number, y: number, color: string, active: boolean) {
@@ -92,36 +85,83 @@ function paintSwitch(ctx: Context, x: number, y: number, color: string, active: 
   block(ctx, x - 10, y - 29, 20, 9, color, 4);
 }
 
-function paintRun(ctx: Context, run: MineView, seat: Seat) {
+function cable(ctx: Context, switchX: number, targetX: number, y: number, targetY: number,
+  active: boolean, color: string, seconds: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(switchX, y + 3);
+  ctx.lineTo(switchX, y + 20);
+  ctx.lineTo(targetX, y + 20);
+  ctx.lineTo(targetX, targetY + 4);
+  ctx.strokeStyle = '#9185a553';
+  ctx.stroke();
+  if (active) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 11]);
+    ctx.lineDashOffset = -seconds * 25;
+    ctx.stroke();
+    glow(ctx, targetX, targetY, 29, color + '66');
+  }
+  ctx.restore();
+}
+
+function planks(ctx: Context, from: number, to: number, y: number) {
+  block(ctx, from, y, to - from, 11, '#886548');
+  for (let x = from + 3; x < to - 7; x += 13) {
+    block(ctx, x, y, 10, 6, '#c7a471');
+  }
+}
+
+function firefly(ctx: Context, x: number, y: number, seconds: number) {
+  const fx = x + Math.sin(seconds * 2) * 4;
+  const fy = y + Math.cos(seconds * 2.8) * 4;
+  glow(ctx, fx, fy, 30, '#ffe086b8');
+  block(ctx, fx - 6, fy - 5, 5, 3, '#def9dcc9');
+  block(ctx, fx + 1, fy - 5, 5, 3, '#def9dcc9');
+  block(ctx, fx - 3, fy - 3, 6, 7, '#fff2ae', 3);
+}
+
+function paintMiner(ctx: Context, x: number, y: number, color: string, isSeat: boolean) {
+  const beam = ctx.createLinearGradient(x + 8, 0, x + 92, 0);
+  beam.addColorStop(0, '#ffe5a06b');
+  beam.addColorStop(1, '#ffdca300');
+  ctx.fillStyle = beam;
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y - 26);
+  ctx.lineTo(x + 92, y - 40);
+  ctx.lineTo(x + 92, y + 1);
+  ctx.fill();
+  glow(ctx, x + 12, y - 25, 29, '#ffdc833d');
+  block(ctx, x - 9, y - 19, 18, 18, color, 5);
+  block(ctx, x - 10, y - 31, 20, 13, color, 6);
+  block(ctx, x - 7, y - 24, 14, 6, '#3c3444', 3);
+  block(ctx, x + 6, y - 28, 7, 6, '#fff0b4');
+  if (isSeat) block(ctx, x - 2, y - 42, 4, 6, '#fff1ca');
+}
+
+function paintMineLayout(ctx: Context) {
+  const { width, height, bridge, lift, upperY, lowerY, exit } = MINE;
+  caveBackdrop(ctx, width, height, lowerY);
+  floor(ctx, 45, bridge.start + 2, upperY);
+  floor(ctx, bridge.end - 2, lift.x - 24, upperY);
+  floor(ctx, lift.x + 23, 960, upperY);
+  floor(ctx, 45, lift.x + 25, lowerY);
+  block(ctx, lift.x - 22, upperY + 3, 44, lowerY - upperY - 2, '#57413d42', 0);
+  for (const offset of [-20, 20]) {
+    block(ctx, lift.x + offset - 1, upperY - 35, 2, lowerY - upperY + 35, '#ad86616b', 1);
+  }
+  doorway(ctx, exit, upperY);
+  block(ctx, 0, 378, width, 22, '#1b182a', 0);
+}
+
+function paintMineRun(ctx: Context, run: MineView, seat: Seat) {
   const { bridge, lift, lowerY, upperY, fireflies, exit } = MINE;
   const seconds = animationSeconds(run.elapsedMs);
-  for (const [switchX, targetX, y, targetY, active, color] of [
-    [bridge.switchX, bridge.start, lowerY, upperY, run.bridgeOpen, '#b4f29c'],
-    [lift.switchX, lift.x, upperY, minerY(run, 'left'), run.liftHeld, '#ffd189'],
-  ] as const) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(switchX, y + 3);
-    ctx.lineTo(switchX, y + 20);
-    ctx.lineTo(targetX, y + 20);
-    ctx.lineTo(targetX, targetY + 4);
-    ctx.strokeStyle = '#9185a553';
-    ctx.stroke();
-    if (active) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 11]);
-      ctx.lineDashOffset = -seconds * 25;
-      ctx.stroke();
-      glow(ctx, targetX, targetY, 29, color + '66');
-    }
-    ctx.restore();
-  }
+  cable(ctx, bridge.switchX, bridge.start, lowerY, upperY, run.bridgeOpen, '#b4f29c', seconds);
+  cable(ctx, lift.switchX, lift.x, upperY, minerY(run, 'left'), run.liftHeld, '#ffd189', seconds);
   if (run.bridgeOpen) {
-    block(ctx, bridge.start, upperY, bridge.end - bridge.start, 11, '#886548');
-    for (let x = bridge.start + 3; x < bridge.end - 7; x += 13) {
-      block(ctx, x, upperY, 10, 6, '#c7a471');
-    }
+    planks(ctx, bridge.start, bridge.end, upperY);
   } else if (run.players.right.x > bridge.start) {
     block(ctx, run.players.right.x - 17, upperY, 34, 7, '#856c51');
   }
@@ -132,41 +172,63 @@ function paintRun(ctx: Context, run: MineView, seat: Seat) {
 
   if (run.players.left.firefly && run.players.right.firefly) glow(ctx, exit + 25, upperY - 32, 56, '#f6cd7666');
   for (const role of ['left', 'right'] as const) {
-    const targetY = (role === 'left' ? lowerY : upperY) - 34;
     if (!run.players[role].firefly) {
-      const x = fireflies[role] + Math.sin(seconds * 2) * 4;
-      const y = targetY + Math.cos(seconds * 2.8) * 4;
-      glow(ctx, x, y, 30, '#ffe086b8');
-      block(ctx, x - 6, y - 5, 5, 3, '#def9dcc9');
-      block(ctx, x + 1, y - 5, 5, 3, '#def9dcc9');
-      block(ctx, x - 3, y - 3, 6, 7, '#fff2ae', 3);
+      firefly(ctx, fireflies[role], (role === 'left' ? lowerY : upperY) - 34, seconds);
     }
-    const { x } = run.players[role];
-    const y = minerY(run, role);
-    const color = colors[role];
-    const beam = ctx.createLinearGradient(x + 8, 0, x + 92, 0);
-    beam.addColorStop(0, '#ffe5a06b');
-    beam.addColorStop(1, '#ffdca300');
-    ctx.fillStyle = beam;
-    ctx.beginPath();
-    ctx.moveTo(x + 10, y - 26);
-    ctx.lineTo(x + 92, y - 40);
-    ctx.lineTo(x + 92, y + 1);
-    ctx.fill();
-    glow(ctx, x + 12, y - 25, 29, '#ffdc833d');
-    block(ctx, x - 9, y - 19, 18, 18, color, 5);
-    block(ctx, x - 10, y - 31, 20, 13, color, 6);
-    block(ctx, x - 7, y - 24, 14, 6, '#3c3444', 3);
-    block(ctx, x + 6, y - 28, 7, 6, '#fff0b4');
-    if (role === seat) block(ctx, x - 2, y - 42, 4, 6, '#fff1ca');
+    paintMiner(ctx, run.players[role].x, minerY(run, role), colors[role], role === seat);
   }
 }
+
+function paintMine2Layout(ctx: Context) {
+  const { width, height, bridge1, bridge2, upperY, lowerY, exit } = MINE2;
+  caveBackdrop(ctx, width, height, lowerY);
+  floor(ctx, 45, bridge1.start + 2, upperY);
+  floor(ctx, bridge1.end - 2, 960, upperY);
+  floor(ctx, 45, bridge2.start + 2, lowerY);
+  floor(ctx, bridge2.end - 2, 960, lowerY);
+  doorway(ctx, exit, upperY);
+  doorway(ctx, exit, lowerY);
+  block(ctx, 0, 378, width, 22, '#1b182a', 0);
+}
+
+function paintMine2Run(ctx: Context, run: MineView, seat: Seat) {
+  const { bridge1, bridge2, lowerY, upperY, fireflies, exit } = MINE2;
+  const seconds = animationSeconds(run.elapsedMs);
+  cable(ctx, bridge1.switchX, bridge1.start, lowerY, upperY, run.bridgeOpen, '#b4f29c', seconds);
+  cable(ctx, bridge2.switchX, bridge2.start, upperY, lowerY, run.bridge2Open, '#ffd189', seconds);
+  if (run.bridgeOpen) {
+    planks(ctx, bridge1.start, bridge1.end, upperY);
+  } else if (run.players.right.x > bridge1.start) {
+    block(ctx, run.players.right.x - 17, upperY, 34, 7, '#856c51');
+  }
+  if (run.bridge2Open) {
+    planks(ctx, bridge2.start, bridge2.end, lowerY);
+  } else if (run.players.left.x > bridge2.start) {
+    block(ctx, run.players.left.x - 17, lowerY, 34, 7, '#856c51');
+  }
+  paintSwitch(ctx, bridge1.switchX, lowerY, '#a7e1a0', run.bridgeOpen);
+  paintSwitch(ctx, bridge2.switchX, upperY, '#f5bd80', run.bridge2Open);
+
+  if (run.players.left.firefly && run.players.right.firefly) {
+    glow(ctx, exit + 25, upperY - 32, 56, '#f6cd7666');
+    glow(ctx, exit + 25, lowerY - 32, 56, '#f6cd7666');
+  }
+  for (const role of ['left', 'right'] as const) {
+    if (!run.players[role].firefly) {
+      firefly(ctx, fireflies[role], (role === 'left' ? lowerY : upperY) - 34, seconds);
+    }
+    paintMiner(ctx, run.players[role].x, minerY(run, role), colors[role], role === seat);
+  }
+}
+
+const paintLayouts = { mine: paintMineLayout, mine2: paintMine2Layout };
+const paintRuns = { mine: paintMineRun, mine2: paintMine2Run };
 
 function focusX(run: MineView, seat: Seat) {
   return run.players[seat].x;
 }
 
 export function MineCanvas({ run = preview, seat, frozen = false }: { run?: MineView; seat: Seat; frozen?: boolean }) {
-  return <PanoramaCanvas run={run} seat={seat} world={MINE} focusX={focusX}
-    paintLayout={paintLayout} paintRun={paintRun} theme="mine-canvas" frozen={frozen} interpolate={interpolateMine} />;
+  return <PanoramaCanvas run={run} seat={seat} world={run.level === 'mine2' ? MINE2 : MINE} focusX={focusX}
+    paintLayout={paintLayouts[run.level]} paintRun={paintRuns[run.level]} theme="mine-canvas" frozen={frozen} interpolate={interpolateMine} />;
 }

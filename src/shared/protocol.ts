@@ -1,5 +1,5 @@
 import type { Paddles, RiverView } from './river.js';
-import type { Channel, Flag, RiverLevel } from './river-levels.js';
+import type { Channel, Flag } from './river-levels.js';
 import type { GameLevel } from './game-levels.js';
 import type { MineView } from './mine.js';
 import type { EggView } from './egg.js';
@@ -61,7 +61,7 @@ export interface ClientEvents {
   'room:select-level': (level: GameLevel, respond: Respond<RoomView>) => void;
   'room:ready': (ready: boolean, lobbyRevision: number, respond: Respond<RoomView>) => void;
   'room:replay': (respond: Respond<RoomView>) => void;
-  'room:next': (level: RiverLevel, respond: Respond<RoomView>) => void;
+  'room:next': (level: GameLevel, respond: Respond<RoomView>) => void;
   'room:leave': (respond: Respond<null>) => void;
   'game:paddle': (pressed: boolean) => void;
   'game:movement': (controls: MovementInput) => void;

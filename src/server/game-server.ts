@@ -9,8 +9,7 @@ import {
 import type { ClientEvents, ClosedReason, Respond, RoomError, RoomView, Seat, ServerEvents } from '../shared/protocol.js';
 import { GAME_TICK_MS, isGameLevel } from '../shared/game-levels.js';
 import { isMovementInput } from '../shared/movement.js';
-import { isRiverLevel } from '../shared/river-levels.js';
-import { Room } from './room.js';
+import { Room, ROOM_IDLE_MS } from './room.js';
 
 interface Membership {
   code: string;
@@ -27,10 +26,11 @@ interface ServerOptions {
   webDirectory?: string;
   reservationMs?: number;
   maxRooms?: number;
+  idleMs?: number;
 }
 
 export function createGameServer({
-  webDirectory, reservationMs = RESERVATION_MS, maxRooms = 500,
+  webDirectory, reservationMs = RESERVATION_MS, maxRooms = 500, idleMs = ROOM_IDLE_MS,
 }: ServerOptions = {}) {
   const app = express();
   app.disable('x-powered-by');
@@ -136,7 +136,7 @@ export function createGameServer({
         code = Array.from({ length: ROOM_CODE_LENGTH },
           () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)]).join('');
       } while (rooms.has(code));
-      const room = new Room(code, now);
+      const room = new Room(code, now, idleMs);
       rooms.set(code, room);
       room.admit('left', socket.id, now);
       bind(socket, room, 'left');
@@ -212,7 +212,7 @@ export function createGameServer({
 
     socket.on('room:next', (level, respond) => {
       updateRoom(respond, (room, _seat, now) => {
-        if (!isRiverLevel(level)) return 'bad-request';
+        if (!isGameLevel(level)) return 'bad-request';
         return room.advance(level, now) ? null : 'wrong-phase';
       });
     });

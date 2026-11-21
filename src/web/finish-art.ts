@@ -1,3 +1,4 @@
+import { isEggLevel, isMineLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { halo, polygon } from './scenery.js';
 
@@ -164,8 +165,8 @@ function hatch(ctx: Context, time: number) {
 }
 
 export function paintFinish(ctx: Context, level: GameLevel, time: number) {
-  const mine = level === 'mine';
-  const egg = level === 'egg';
+  const mine = isMineLevel(level);
+  const egg = isEggLevel(level);
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

@@ -1,5 +1,5 @@
-import { MINE_LEVEL_TITLE, MINE_TITLE } from '../shared/game-levels.js';
-import { minerAtExit, MINE, nearMineSwitch } from '../shared/mine.js';
+import { MINE_LEVEL_TITLE, MINE_TITLE, MINE2_LEVEL_TITLE, nextGameLevel } from '../shared/game-levels.js';
+import { minerAtExit, MINE, MINE2, nearMineSwitch } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
 import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
@@ -11,6 +11,7 @@ import { PauseOverlay } from './pause-overlay.js';
 type Game = ReturnType<typeof useRoom>;
 
 function mineGoal(run: MineView, seat: Seat) {
+  if (run.level === 'mine2') return doubleBridgeGoal(run, seat);
   if (run.finished) return '两盏萤火虫灯都点亮了';
   if (run.liftProgress === 1) {
     return minerAtExit(run, seat) ? '你已到出口，等队友过来' : '沿上层路往右，一起到出口';
@@ -32,6 +33,30 @@ function mineGoal(run: MineView, seat: Seat) {
   return run.players.right.x < MINE.bridge.start ? '走到桥边，等下层队友放桥' : '原地等下层队友按住开关';
 }
 
+function doubleBridgeGoal(run: MineView, seat: Seat) {
+  const { bridge1, bridge2 } = MINE2;
+  if (run.finished) return '两盏萤火虫灯都点亮了';
+  if (run.bridge2Crossed) {
+    return minerAtExit(run, seat) ? '你已到出口，等队友过来' : '沿自己的路往右，一起到出口';
+  }
+  if (run.bridgeCrossed) {
+    if (seat === 'right') {
+      return nearMineSwitch(run.players.right.x, bridge2.switchX)
+        ? '按住橙色开关，帮下层队友过第二道桥'
+        : run.players.right.x < bridge2.switchX ? '向右走到橙色开关旁' : '向左回到橙色开关旁';
+    }
+    if (run.bridge2Open) return '第二道桥放下了，往右过桥';
+    return run.players.left.x < bridge2.start ? '向右走到第二道桥边，等上层队友放桥' : '原地等上层队友按住开关';
+  }
+  if (seat === 'left') {
+    return nearMineSwitch(run.players.left.x, bridge1.switchX)
+      ? '按住绿色开关，帮上层队友过第一道桥'
+      : run.players.left.x < bridge1.switchX ? '向右走到绿色开关旁' : '向左回到绿色开关旁';
+  }
+  if (run.bridgeOpen) return '第一道桥放下了，往右过桥';
+  return run.players.right.x < bridge1.start ? '走到第一道桥边，等下层队友放桥' : '原地等下层队友按住开关';
+}
+
 export function MineStage({ run, phase, seat, game }: {
   run: MineView;
   phase: RoomPhase;
@@ -40,9 +65,11 @@ export function MineStage({ run, phase, seat, game }: {
 }) {
   const disabled = game.connection !== 'online' || game.busy;
   const fireflies = Number(run.players.left.firefly) + Number(run.players.right.firefly);
+  const levelTitle = run.level === 'mine2' ? MINE2_LEVEL_TITLE : MINE_LEVEL_TITLE;
+  const next = nextGameLevel(run.level);
   return <section className="stage">
     <div className="stage-title">
-      <div><span className="chapter">{MINE_LEVEL_TITLE} · {seat === 'left' ? '下层' : '上层'}</span><h1>{MINE_TITLE}</h1></div>
+      <div><span className="chapter">{levelTitle} · {seat === 'left' ? '下层' : '上层'}</span><h1>{MINE_TITLE}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
     <div className="stage-hud">
@@ -54,7 +81,8 @@ export function MineStage({ run, phase, seat, game }: {
       {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <FinishOverlay level={run.level} title="一起走出矿洞了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯`}>
-        <button className="primary" disabled={disabled} onClick={game.replay}>再玩一次</button>
+        {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
+        <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>
       </FinishOverlay>}
     </div>
     {phase !== 'finished' && <MovementDeck enabled={!disabled && phase === 'playing'}

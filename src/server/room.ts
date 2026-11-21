@@ -1,21 +1,20 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { createEgg, eggView, stepEgg } from '../shared/egg.js';
+import { createEgg, eggView, isEggView, stepEgg } from '../shared/egg.js';
 import type { EggView } from '../shared/egg.js';
-import { GAME_LEVELS, usesMovementControls } from '../shared/game-levels.js';
+import { GAME_LEVELS, isEggLevel, isMineLevel, nextGameLevel, usesMovementControls } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
-import { createMine, mineView, stepMine } from '../shared/mine.js';
+import { createMine, isMineView, mineView, stepMine } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
 import { IDLE_MOVEMENT } from '../shared/movement.js';
-import type { MovementInput } from '../shared/movement.js';
+import type { MovementInput, MovementInputs } from '../shared/movement.js';
 import { SEATS } from '../shared/protocol.js';
 import type { Admission, FogClues, PlayerView, RoomPhase, RoomView, Seat } from '../shared/protocol.js';
 import { createRiverRun, riverView, stepRiver } from '../shared/river.js';
 import type { Paddles, RiverRun } from '../shared/river.js';
-import { nextRiverLevel, RIVER_ORDER } from '../shared/river-levels.js';
-import type { RiverLevel } from '../shared/river-levels.js';
+import { RIVER_ORDER } from '../shared/river-levels.js';
 
 const INPUT_LEASE_MS = 450;
-const ROOM_IDLE_MS = 30 * 60_000;
+export const ROOM_IDLE_MS = 30 * 60_000;
 
 interface Member {
   token: string;
@@ -34,7 +33,7 @@ export class Room {
   private readonly completed = new Set<GameLevel>();
   private activeAt: number;
 
-  constructor(readonly code: string, now: number) {
+  constructor(readonly code: string, now: number, private readonly idleMs: number = ROOM_IDLE_MS) {
     this.activeAt = now;
   }
 
@@ -71,7 +70,7 @@ export class Room {
   }
 
   expired(now: number, reservationMs: number) {
-    return now - this.activeAt >= ROOM_IDLE_MS || SEATS.some(seat => {
+    return now - this.activeAt >= this.idleMs || SEATS.some(seat => {
       const disconnectedAt = this.members[seat]?.disconnectedAt;
       return disconnectedAt != null && now - disconnectedAt >= reservationMs;
     });
@@ -93,11 +92,9 @@ export class Room {
         flag: randomInt(2) === 0 ? 'triangle' as const : 'circle' as const,
         channel: randomInt(2) === 0 ? 'upper' as const : 'lower' as const,
       } : undefined;
-      switch (this.level) {
-        case 'mine': this.run = createMine(); break;
-        case 'egg': this.run = createEgg(); break;
-        default: this.run = createRiverRun(this.level, layout);
-      }
+      if (isMineLevel(this.level)) this.run = createMine(this.level);
+      else if (isEggLevel(this.level)) this.run = createEgg(this.level);
+      else this.run = createRiverRun(this.level, layout);
     }
     return true;
   }
@@ -108,8 +105,8 @@ export class Room {
     return true;
   }
 
-  advance(from: RiverLevel, now: number) {
-    const next = nextRiverLevel(from);
+  advance(from: GameLevel, now: number) {
+    const next = nextGameLevel(from);
     if (!next) return false;
     if (this.level === next && !this.run) return true;
     if (this.level !== from || !this.run?.finished) return false;
@@ -150,21 +147,22 @@ export class Room {
 
   tick(now: number) {
     if (!this.run || this.phase !== 'playing') return;
-    if (this.run.level === 'mine' || this.run.level === 'egg') {
-      const held = (seat: Seat) => {
-        const input = this.members[seat]!.movement;
-        return input && input.until > now ? input.controls : IDLE_MOVEMENT;
-      };
-      const inputs = { left: held('left'), right: held('right') };
-      if (this.run.level === 'mine') stepMine(this.run, inputs);
-      else stepEgg(this.run, inputs);
-    } else {
-      stepRiver(this.run, this.paddles(now));
-    }
-    if (this.run.finished) {
+    const run = this.run;
+    if (isMineView(run)) stepMine(run, this.movementInputs(now));
+    else if (isEggView(run)) stepEgg(run, this.movementInputs(now));
+    else stepRiver(run, this.paddles(now));
+    if (run.finished) {
       this.completed.add(this.level);
       this.clearInputs();
     }
+  }
+
+  private movementInputs(now: number): MovementInputs {
+    const held = (seat: Seat) => {
+      const input = this.members[seat]!.movement;
+      return input && input.until > now ? input.controls : IDLE_MOVEMENT;
+    };
+    return { left: held('left'), right: held('right') };
   }
 
   get phase(): RoomPhase {
@@ -191,8 +189,8 @@ export class Room {
   private runView(): RoomView['run'] {
     const run = this.run;
     if (!run) return null;
-    if (run.level === 'mine') return mineView(run);
-    if (run.level === 'egg') return eggView(run);
+    if (isMineView(run)) return mineView(run);
+    if (isEggView(run)) return eggView(run);
     return riverView(run);
   }
 

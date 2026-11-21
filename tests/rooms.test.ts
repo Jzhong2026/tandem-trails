@@ -6,12 +6,13 @@ import type { TestContext } from 'node:test';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { createGameServer } from '../src/server/game-server.js';
+import type { GameLevel } from '../src/shared/game-levels.js';
 import type { Ack, ClientEvents, ServerEvents, RoomView, Admission } from '../src/shared/protocol.js';
 
 type Client = Socket<ServerEvents, ClientEvents>;
 
-async function fixture(t: TestContext, reservationMs = 1_500) {
-  const server = createGameServer({ reservationMs });
+async function fixture(t: TestContext, reservationMs = 1_500, idleMs?: number) {
+  const server = createGameServer({ reservationMs, idleMs });
   server.http.listen(0, '127.0.0.1');
   await once(server.http, 'listening');
   const address = server.http.address();
@@ -133,6 +134,32 @@ test('an expired reservation closes the old room and allows a new invitation', a
   assert.notEqual((await create(host)).room.code, first.room.code);
 });
 
+test('a room with both players online is recycled after the idle window', async t => {
+  const connect = await fixture(t, 1_500, 300);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  accepted(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
+  const closed = new Promise(resolve => host.once('room:closed', resolve));
+  assert.equal(await closed, 'expired');
+  assert.deepEqual(await host.timeout(1000).emitWithAck('room:resume', {
+    code: first.room.code, token: first.token,
+  }), { ok: false, error: 'expired' });
+});
+
+test('lobby activity postpones idle recycling', async t => {
+  const connect = await fixture(t, 1_500, 500);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  accepted(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
+  await delay(300);
+  accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', true, first.room.lobbyRevision));
+  await delay(300);
+  // Past the idle window since joining, but only 300ms since the last activity.
+  accepted<RoomView>(await host.timeout(1000).emitWithAck('room:ready', false, first.room.lobbyRevision));
+  const closed = new Promise(resolve => host.once('room:closed', resolve));
+  assert.equal(await closed, 'expired');
+});
+
 test('only the host selects a level and changing it clears both ready states', async t => {
   const connect = await fixture(t);
   const [host, guest] = await Promise.all([connect(), connect()]);
@@ -231,4 +258,17 @@ test('the mine uses each seat’s own controls and a returning player resumes wi
   const after = await roomWhen(host, current => (current.run?.elapsedMs ?? 0) > paused.run!.elapsedMs + 120);
   assert.ok(after.run?.level === 'mine' && paused.run?.level === 'mine');
   assert.deepEqual(after.run.players, paused.run.players);
+});
+
+test('the second chapter levels start their own run and advancing is gated on finishing', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  await guest.timeout(1000).emitWithAck('room:join', first.room.code);
+  const mine2 = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'mine2'));
+  await host.timeout(1000).emitWithAck('room:ready', true, mine2.lobbyRevision);
+  const playing = accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, mine2.lobbyRevision));
+  assert.equal(playing.run?.level, 'mine2');
+  assert.deepEqual(await host.timeout(1000).emitWithAck('room:next', 'mine2'), { ok: false, error: 'wrong-phase' });
+  assert.deepEqual(await host.timeout(1000).emitWithAck('room:next', 'bogus' as GameLevel), { ok: false, error: 'bad-request' });
 });

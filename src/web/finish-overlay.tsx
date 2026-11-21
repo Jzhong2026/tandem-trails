@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { isEggLevel, isMineLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { paintFinish } from './finish-art.js';
 
@@ -41,7 +42,7 @@ function FinishIllustration({ level }: { level: GameLevel }) {
 export function FinishOverlay({ level, title, summary, children }: {
   level: GameLevel; title: string; summary: string; children: ReactNode;
 }) {
-  const theme = level === 'egg' || level === 'mine' ? level : 'river';
+  const theme = isEggLevel(level) ? 'egg' : isMineLevel(level) ? 'mine' : 'river';
   return <div className={`finish-scene finish-${theme}`}>
     <FinishIllustration level={level} />
     <div className="finish-result">
