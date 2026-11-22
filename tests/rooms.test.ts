@@ -272,3 +272,27 @@ test('the second chapter levels start their own run and advancing is gated on fi
   assert.deepEqual(await host.timeout(1000).emitWithAck('room:next', 'mine2'), { ok: false, error: 'wrong-phase' });
   assert.deepEqual(await host.timeout(1000).emitWithAck('room:next', 'bogus' as GameLevel), { ok: false, error: 'bad-request' });
 });
+
+test('the submarine gives each seat its own axis and ignores paddles', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  await guest.timeout(1000).emitWithAck('room:join', first.room.code);
+  const sub = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:select-level', 'sub'));
+  await host.timeout(1000).emitWithAck('room:ready', true, sub.lobbyRevision);
+  const playing = accepted<RoomView>(await guest.timeout(1000).emitWithAck('room:ready', true, sub.lobbyRevision));
+  assert.equal(playing.run?.level, 'sub');
+
+  guest.emit('game:paddle', true);
+  const dived = roomWhen(host, current => current.run?.level === 'sub' && current.run.y > 230);
+  host.emit('game:movement', { left: false, right: true, interact: false });
+  const active = await dived;
+  assert.ok(active.run?.level === 'sub');
+  assert.equal(active.run.x, 105);
+
+  const cruised = roomWhen(host, current => current.run?.level === 'sub' && current.run.x > 130);
+  guest.emit('game:movement', { left: false, right: true, interact: false });
+  const moved = await cruised;
+  assert.ok(moved.run?.level === 'sub');
+  assert.ok(moved.run.y > 230);
+});

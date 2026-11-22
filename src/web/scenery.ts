@@ -7,7 +7,7 @@ export function animationSeconds(elapsedMs: number) {
   return motionPreference.matches ? 0 : elapsedMs / 1000;
 }
 
-export function polygon(ctx: Context, color: string, points: readonly Point[]) {
+export function polygon(ctx: Context, color: string | CanvasGradient, points: readonly Point[]) {
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(...points[0]);

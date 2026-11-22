@@ -1,4 +1,4 @@
-import { isEggLevel, isMineLevel } from '../shared/game-levels.js';
+import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { halo, polygon } from './scenery.js';
 
@@ -164,13 +164,72 @@ function hatch(ctx: Context, time: number) {
   ctx.restore();
 }
 
+function coral(ctx: Context, time: number) {
+  const arrive = progress(time, 0, .5);
+  const swim = progress(time, .45, .85);
+  oval(ctx, 0, 49, 96, 11, '#0d3040');
+  halo(ctx, 58, 6, 52, '#ffb27a4d');
+  shape(ctx, '#e88a6a', 'M 22 46 Q 16 -22 58 -28 Q 100 -22 94 46 L 78 46 Q 80 -8 58 -12 Q 36 -8 38 46 Z');
+  line(ctx, '#f2a984', 2.4, 'M 30 44 Q 26 -14 58 -20 Q 90 -14 86 44');
+  for (let i = 0; i < 7; i++) {
+    const angle = Math.PI + i * Math.PI / 6;
+    oval(ctx, 58 + Math.cos(angle) * 30, 2 + Math.sin(angle) * 24, 2.2, 2.2, '#ffd9b0');
+  }
+  oval(ctx, 58, 40, 26, 6, '#c9ae74');
+  for (let i = 0; i < 5; i++) {
+    const rise = (time * 60 + i * 23) % 70;
+    oval(ctx, 24 + i * 16, 40 - rise, 2 + i % 2, 2 + i % 2, '#bfeef566');
+  }
+  ctx.save();
+  ctx.translate(-96 + arrive * 70, 14);
+  const beam = ctx.createLinearGradient(24, 0, 70, 0);
+  beam.addColorStop(0, '#ffe5a059');
+  beam.addColorStop(1, '#ffdca300');
+  ctx.fillStyle = beam;
+  ctx.fill(new Path2D('M 24 -7 L 70 -18 L 70 18 L 24 7 Z'));
+  shape(ctx, '#e09a5f', 'M -24 -11 L -31 -19 L -18 -13 Z');
+  oval(ctx, -33, 0, 2.6, 8, '#e8b071');
+  shape(ctx, '#ffd9a0', 'M -28 -13 Q -28 -14 -14 -14 L 14 -14 Q 28 -14 28 0 Q 28 14 14 14 L -14 14 Q -28 14 -28 0 Z');
+  shape(ctx, '#e09a5f', 'M -28 4 L 28 4 Q 28 14 14 14 L -14 14 Q -28 14 -28 4 Z');
+  ctx.fillStyle = '#e09a5f';
+  ctx.fillRect(-3, -23, 6, 10);
+  ctx.fillStyle = '#8bddd0';
+  ctx.fillRect(-3, -26, 9, 4);
+  for (const [px, coat] of [[-9, '#f1b675'], [9, '#8bddd0']] as const) {
+    oval(ctx, px, -1, 6.6, 6.6, coat);
+    oval(ctx, px, -1, 4.6, 4.6, '#16323f');
+    oval(ctx, px, 0, 3, 3.4, '#f4dbb0');
+    oval(ctx, px + 1.1, -1, .8, 1, '#3a3540');
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.translate(-14 + swim * 66, 18 - Math.sin(swim * Math.PI) * 24);
+  ctx.rotate(-swim * .2);
+  halo(ctx, 0, 0, 24, '#ffc56366');
+  line(ctx, '#efac53', 3.4, 'M -2 9 Q -7 17 -12 14 Q -15 11 -11 9');
+  shape(ctx, '#efac53', 'M -5 -3 L -11 -1 L -10 4 L -5 6 Z');
+  oval(ctx, 0, 2, 6, 9.4, '#ffc563');
+  oval(ctx, 1.6, 3.4, 3.4, 6.8, '#ffe09a');
+  oval(ctx, 1, -9.4, 5.6, 6, '#ffc563');
+  shape(ctx, '#efac53', 'M 5 -11 L 12 -11 L 12 -8.4 L 5 -8.4 Z');
+  shape(ctx, '#efac53', 'M -2 -14 L 0 -18 L 2 -14 L 4 -17 L 5 -13 Z');
+  oval(ctx, 3, -10.4, 1.4, 1.8, '#362f38');
+  oval(ctx, 3.4, -11, .5, .5, '#fffbde');
+  ctx.restore();
+  ctx.globalAlpha = Math.sin(progress(time, .86, 1) * Math.PI);
+  sparkle(ctx, 58, -34, 5, '#ffe09c');
+  sparkle(ctx, 34, -18, 3, '#bfeef5');
+  ctx.globalAlpha = 1;
+}
+
 export function paintFinish(ctx: Context, level: GameLevel, time: number) {
   const mine = isMineLevel(level);
   const egg = isEggLevel(level);
+  const sub = isSubLevel(level);
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  halo(ctx, 0, 0, 101, mine ? '#8b81d24d' : egg ? '#f2b78240' : '#7de8d747');
+  halo(ctx, 0, 0, 101, mine ? '#8b81d24d' : egg ? '#f2b78240' : sub ? '#7fd4e84d' : '#7de8d747');
   for (let i = 0; i < 20; i++) {
     const angle = i * 2.4;
     const x = Math.cos(angle) * (65 + i % 5 * 14);
@@ -180,6 +239,7 @@ export function paintFinish(ctx: Context, level: GameLevel, time: number) {
   }
   if (mine) grotto(ctx, time);
   else if (egg) hatch(ctx, time);
+  else if (sub) coral(ctx, time);
   else dock(ctx, time, level !== 'practice');
   ctx.restore();
 }

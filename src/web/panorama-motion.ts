@@ -1,5 +1,6 @@
 import type { EggView } from '../shared/egg.js';
 import type { MineView } from '../shared/mine.js';
+import type { SubView } from '../shared/sub.js';
 
 function approach(from: number, to: number, blend: number, tolerance: number) {
   const position = from + (to - from) * blend;
@@ -28,4 +29,12 @@ export function interpolateEgg(from: EggView, to: EggView, blend: number): EggVi
   const tilt = approach(from.tilt, to.tilt, blend, .002);
   if (x === to.x && roll === to.roll && tilt === to.tilt) return to;
   return { ...to, x, roll, tilt };
+}
+
+export function interpolateSub(from: SubView, to: SubView, blend: number): SubView {
+  if (to.finished || from.collisions !== to.collisions) return to;
+  const x = approach(from.x, to.x, blend, .15);
+  const y = approach(from.y, to.y, blend, .15);
+  if (x === to.x && y === to.y) return to;
+  return { ...to, x, y };
 }

@@ -3,6 +3,7 @@ import type { Channel, Flag } from './river-levels.js';
 import type { GameLevel } from './game-levels.js';
 import type { MineView } from './mine.js';
 import type { EggView } from './egg.js';
+import type { SubView } from './sub.js';
 import type { MovementInput } from './movement.js';
 
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -36,7 +37,7 @@ export interface RoomView {
   completed: GameLevel[];
   players: Record<Seat, PlayerView | null>;
   paddles: Paddles;
-  run: RiverView | MineView | EggView | null;
+  run: RiverView | MineView | EggView | SubView | null;
   clues: FogClues | null;
 }
 

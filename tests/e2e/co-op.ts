@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import type { Browser, CDPSession, Page } from '@playwright/test';
 import { isEggView } from '../../src/shared/egg.js';
 import { isMineView } from '../../src/shared/mine.js';
+import { isSubView } from '../../src/shared/sub.js';
 import type { RoomView } from '../../src/shared/protocol.js';
 import type { RiverView } from '../../src/shared/river.js';
 
@@ -29,7 +30,7 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
     const touch = await phone.newCDPSession(guest);
     function river() {
       const run = latest?.run;
-      return run && !isMineView(run) && !isEggView(run) ? run : undefined;
+      return run && !isMineView(run) && !isEggView(run) && !isSubView(run) ? run : undefined;
     }
 
     async function hold(left: boolean, right: boolean, until: (run: RiverView) => boolean) {

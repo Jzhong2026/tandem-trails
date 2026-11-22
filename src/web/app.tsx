@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import {
   EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, EGG2_LEVEL_TITLE, EGG2_SUMMARY, GAME_LEVELS,
-  isEggLevel, isMineLevel, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE, MINE2_LEVEL_TITLE, MINE2_SUMMARY,
+  isEggLevel, isMineLevel, isSubLevel, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE, MINE2_LEVEL_TITLE, MINE2_SUMMARY,
+  SUB_LEVEL_TITLE, SUB_SUMMARY, SUB_TITLE,
 } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { createEgg, isEggView } from '../shared/egg.js';
 import { createMine, isMineView } from '../shared/mine.js';
+import { createSub, isSubView } from '../shared/sub.js';
 import { normalizeRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
 import type { FogClues, RoomView, Seat } from '../shared/protocol.js';
 import { nextRiverLevel, RIVER_COURSES } from '../shared/river-levels.js';
@@ -18,7 +20,11 @@ import { MineCanvas } from './mine-canvas.js';
 import { MineStage } from './mine-stage.js';
 import { PaddleButton } from './paddle-button.js';
 import { PauseOverlay } from './pause-overlay.js';
+import { QuestGame } from './quest-game.js';
+import { QuestPreview } from './quest-preview.js';
 import { RiverCanvas } from './river-canvas.js';
+import { SubCanvas } from './sub-canvas.js';
+import { SubStage } from './sub-stage.js';
 import { useRoom } from './use-room.js';
 
 type Game = ReturnType<typeof useRoom>;
@@ -31,17 +37,20 @@ function courseInfo(level: GameLevel) {
   if (level === 'mine2') return { title: MINE_TITLE, summary: MINE2_SUMMARY, chapter: MINE2_LEVEL_TITLE };
   if (level === 'egg') return { title: EGG_TITLE, summary: EGG_SUMMARY, chapter: EGG_LEVEL_TITLE };
   if (level === 'egg2') return { title: EGG_TITLE, summary: EGG2_SUMMARY, chapter: EGG2_LEVEL_TITLE };
+  if (level === 'sub') return { title: SUB_TITLE, summary: SUB_SUMMARY, chapter: SUB_LEVEL_TITLE };
   return { ...RIVER_COURSES[level], chapter: '双桨救援队' };
 }
 
 function roleName(level: GameLevel, seat: Seat) {
   if (isMineLevel(level)) return seat === 'left' ? '下层' : '上层';
   if (isEggLevel(level)) return seat === 'left' ? '左端' : '右端';
+  if (isSubLevel(level)) return seat === 'left' ? '升降驾驶员' : '前进驾驶员';
   return seatName[seat];
 }
 
 export function App() {
   const game = useRoom();
+  const [quest, setQuest] = useState<'solo' | 'coop' | null>(null);
   const [code, setCode] = useState(() => normalizeRoomCode(
     new URLSearchParams(window.location.search).get('room') ?? '',
   ).slice(0, ROOM_CODE_LENGTH));
@@ -65,36 +74,62 @@ export function App() {
         <button className="text-button" onClick={game.retry}>重新连接</button>
       </div>}
       {game.error && <p className="notice" role="alert">{game.error}</p>}
-      {game.room && game.seat
+      {quest && !game.room
+        ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
+        : game.room && game.seat
         ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
           : isMineView(game.room.run)
             ? <MineStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
             : isEggView(game.room.run)
               ? <EggStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
-              : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
-        : <section className="home">
-          <div className="home-copy">
-            <h1>亲子协作<br />大冒险</h1>
-            <p className="home-description">和家人各掌一支桨。一起练船、绕浮木，再循着线索到雾里救小鸭。</p>
-            <button className="primary create-button" disabled={!online || game.busy} onClick={game.create}>创建房间</button>
-            <form className="join-form" onSubmit={event => {
-              event.preventDefault();
-              if (validRoomCode(code)) void game.join(code);
-            }}>
-              <label htmlFor="room-code">房间码</label>
-              <div className="join-row">
-                <input id="room-code" name="room-code" value={code} placeholder="6 位字母或数字"
-                  autoComplete="off" autoCapitalize="characters" spellCheck={false}
-                  aria-invalid={codeHint !== ''} aria-describedby={codeHint ? 'room-code-hint' : undefined}
-                  maxLength={ROOM_CODE_LENGTH} onChange={event => setCode(normalizeRoomCode(event.target.value))} />
-                <button type="submit" className="secondary" disabled={!online || game.busy || !validRoomCode(code)}>加入房间</button>
+              : isSubView(game.room.run)
+                ? <SubStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+                : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
+        : <>
+          <div className="quest">
+            <section className="quest-hero-home">
+              <div className="quest-hero-copy">
+                <h1>星芽<br /><em>大冒险</em></h1>
+                <p className="lede">12 个手绘主题关卡：跑、跳、踩扁栗栗、顶问号砖、踩弹簧飞上天。可以一个人闯关，也可以两个人分工——前锋冲刺开路，后卫举盾断后。</p>
+                <div className="quest-hero-actions">
+                  <button className="qbtn primary" onClick={() => setQuest('solo')}>单人闯关</button>
+                  <button className="qbtn mint" onClick={() => setQuest('coop')}>双人同乐</button>
+                </div>
+                <div className="quest-hero-facts">
+                  <span className="quest-chip">12 关 · 4 个世界</span>
+                  <span className="quest-chip">难度轻松 · 掉坑不扣心</span>
+                  <span className="quest-chip">双人更容易通关</span>
+                  <span className="quest-chip">键盘 / 触屏都能玩</span>
+                </div>
               </div>
-              {codeHint && <p className="assist" id="room-code-hint">{codeHint}</p>}
-            </form>
+              <QuestPreview coop={false} />
+            </section>
+            <div className="quest-divider">双人联机 · 双桨救援队</div>
           </div>
-          <CourseCard level="bend" />
-        </section>}
+          <section className="home">
+            <div className="home-copy">
+              <h1>亲子协作<br />大冒险</h1>
+              <p className="home-description">和家人各掌一支桨。一起练船、绕浮木，再循着线索到雾里救小鸭。</p>
+              <button className="primary create-button" disabled={!online || game.busy} onClick={game.create}>创建房间</button>
+              <form className="join-form" onSubmit={event => {
+                event.preventDefault();
+                if (validRoomCode(code)) void game.join(code);
+              }}>
+                <label htmlFor="room-code">房间码</label>
+                <div className="join-row">
+                  <input id="room-code" name="room-code" value={code} placeholder="6 位字母或数字"
+                    autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                    aria-invalid={codeHint !== ''} aria-describedby={codeHint ? 'room-code-hint' : undefined}
+                    maxLength={ROOM_CODE_LENGTH} onChange={event => setCode(normalizeRoomCode(event.target.value))} />
+                  <button type="submit" className="secondary" disabled={!online || game.busy || !validRoomCode(code)}>加入房间</button>
+                </div>
+                {codeHint && <p className="assist" id="room-code-hint">{codeHint}</p>}
+              </form>
+            </div>
+            <CourseCard level="bend" />
+          </section>
+        </>}
     </main>
   </div>;
 }
@@ -104,7 +139,8 @@ function CourseCard({ level }: { level: GameLevel }) {
   return <figure className="river-card">
     {isMineLevel(level) ? <MineCanvas seat="left" run={createMine(level)} />
       : isEggLevel(level) ? <EggCanvas seat="left" run={createEgg(level)} />
-        : <RiverCanvas level={level} />}
+        : isSubLevel(level) ? <SubCanvas seat="left" run={createSub(level)} />
+          : <RiverCanvas level={level} />}
     <figcaption>
       <div><span className="chapter">{course.chapter}</span><strong>{course.title}</strong></div>
       <span className="player-count">2 人合作</span>

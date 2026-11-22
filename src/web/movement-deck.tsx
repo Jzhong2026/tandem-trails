@@ -9,25 +9,28 @@ const controls = {
   interact: { key: 'KeyE', label: '' },
 } as const;
 type Input = (action: MovementAction, pressed: boolean) => void;
+type MoveLabels = { left: string; right: string };
 
-function MoveButton({ action, enabled, onInput, actionLabel }: {
-  action: MovementAction; enabled: boolean; onInput: Input; actionLabel: string;
+function MoveButton({ action, enabled, onInput, actionLabel, moveLabels }: {
+  action: MovementAction; enabled: boolean; onInput: Input; actionLabel?: string; moveLabels?: MoveLabels;
 }) {
   const onHold = useCallback((pressed: boolean) => onInput(action, pressed), [action, onInput]);
+  const label = action === 'interact' ? actionLabel : moveLabels?.[action] ?? controls[action].label;
   return <HoldButton className={`movement-button ${action}`} enabled={enabled}
     keyCode={controls[action].key} onHold={onHold} refresh={false}>
-    {action === 'interact' ? actionLabel : controls[action].label}
+    {label}
   </HoldButton>;
 }
 
-export function MovementDeck({ enabled, onInput, actionLabel, keyLabel }: {
-  enabled: boolean; onInput: Input; actionLabel: string; keyLabel: string;
+export function MovementDeck({ enabled, onInput, actionLabel, keyLabel, moveLabels }: {
+  enabled: boolean; onInput: Input; actionLabel?: string; keyLabel?: string; moveLabels?: MoveLabels;
 }) {
+  const actions = actionLabel ? MOVEMENT_ACTIONS : MOVEMENT_ACTIONS.filter(action => action !== 'interact');
   return <div className="movement-deck">
     <div className="movement-actions">
-      {MOVEMENT_ACTIONS.map(action => <MoveButton key={action} action={action}
-        enabled={enabled} onInput={onInput} actionLabel={actionLabel} />)}
+      {actions.map(action => <MoveButton key={action} action={action}
+        enabled={enabled} onInput={onInput} actionLabel={actionLabel} moveLabels={moveLabels} />)}
     </div>
-    <span className="keyboard-guide">键盘 <kbd>A</kbd> / <kbd>D</kbd> 移动 · <kbd>E</kbd> {keyLabel}</span>
+    <span className="keyboard-guide">键盘 <kbd>A</kbd> / <kbd>D</kbd> 移动{keyLabel && <> · <kbd>E</kbd> {keyLabel}</>}</span>
   </div>;
 }

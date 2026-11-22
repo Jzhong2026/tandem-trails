@@ -1,10 +1,12 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { createEgg, eggView, isEggView, stepEgg } from '../shared/egg.js';
 import type { EggView } from '../shared/egg.js';
-import { GAME_LEVELS, isEggLevel, isMineLevel, nextGameLevel, usesMovementControls } from '../shared/game-levels.js';
+import { GAME_LEVELS, isEggLevel, isMineLevel, isSubLevel, nextGameLevel, usesMovementControls } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { createMine, isMineView, mineView, stepMine } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
+import { createSub, isSubView, stepSub, subView } from '../shared/sub.js';
+import type { SubView } from '../shared/sub.js';
 import { IDLE_MOVEMENT } from '../shared/movement.js';
 import type { MovementInput, MovementInputs } from '../shared/movement.js';
 import { SEATS } from '../shared/protocol.js';
@@ -27,7 +29,7 @@ interface Member {
 
 export class Room {
   readonly members: Record<Seat, Member | null> = { left: null, right: null };
-  private run: RiverRun | MineView | EggView | null = null;
+  private run: RiverRun | MineView | EggView | SubView | null = null;
   private level: GameLevel = RIVER_ORDER[0];
   private lobbyRevision = 0;
   private readonly completed = new Set<GameLevel>();
@@ -94,6 +96,7 @@ export class Room {
       } : undefined;
       if (isMineLevel(this.level)) this.run = createMine(this.level);
       else if (isEggLevel(this.level)) this.run = createEgg(this.level);
+      else if (isSubLevel(this.level)) this.run = createSub(this.level);
       else this.run = createRiverRun(this.level, layout);
     }
     return true;
@@ -150,6 +153,7 @@ export class Room {
     const run = this.run;
     if (isMineView(run)) stepMine(run, this.movementInputs(now));
     else if (isEggView(run)) stepEgg(run, this.movementInputs(now));
+    else if (isSubView(run)) stepSub(run, this.movementInputs(now));
     else stepRiver(run, this.paddles(now));
     if (run.finished) {
       this.completed.add(this.level);
@@ -191,6 +195,7 @@ export class Room {
     if (!run) return null;
     if (isMineView(run)) return mineView(run);
     if (isEggView(run)) return eggView(run);
+    if (isSubView(run)) return subView(run);
     return riverView(run);
   }
 
