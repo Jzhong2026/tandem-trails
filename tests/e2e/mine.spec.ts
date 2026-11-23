@@ -9,6 +9,7 @@ test('both players operate the bridge and lift and leave the mine together', asy
     await host.getByRole('combobox', { name: '关卡' }).selectOption('mine');
     await expect(guest.getByText('本轮关卡')).toContainText('萤火虫矿洞');
     await readyTogether(host, guest);
+    await expect(host.locator('.story-bubble')).toContainText('长老');
     await expect(host.getByRole('heading', { name: '萤火虫矿洞' })).toBeVisible();
     await expect(guest.getByText('断桥接力 · 上层')).toBeVisible();
     await expect(host.getByText('断桥接力 · 下层')).toBeVisible();

@@ -157,6 +157,14 @@ input::placeholder { color: #a6b5a7; }
 .buddy-name { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--light); }
 .buddy-name input { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #00000030; color: var(--ink); }
 @media (max-width: 640px) { .buddy-seats { grid-template-columns: 1fr; } }
+.mission-card { margin: 12px 0 4px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.mission-card .chapter { color: var(--mint); font-size: 0.8rem; letter-spacing: 0.06em; }
+.mission-line { margin: 4px 0 2px; font-weight: 700; color: var(--ink); }
+.story-bubble { margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; background: #ffffff10; border: 1px solid var(--line); color: var(--light); font-size: 0.9rem; }
+.story-bubble strong { color: var(--orange); margin-right: 8px; }
+.finish-story { margin: 6px 0 0; color: var(--ink); }
+.finish-hook { margin: 4px 0 0; }
+.finish-actions-guard { border: 0; padding: 0; margin: 0; min-width: 0; }
 .room-actions { display: flex; gap: 16px; align-items: center; }
 .course-picker { margin-top: 14px; }
 .course-picker label { display: flex; align-items: center; gap: 12px; color: var(--light); }

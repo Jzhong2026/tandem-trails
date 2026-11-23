@@ -15,6 +15,8 @@ import type { Channel, Flag } from '../shared/river-levels.js';
 import type { RiverView } from '../shared/river.js';
 import { EggCanvas } from './egg-canvas.js';
 import { BuddySeats } from './buddy-picker.js';
+import { MissionCard, StoryBubble } from './story-bubble.js';
+import { storyFor } from '../shared/story.js';
 import { looksOf } from './buddy.js';
 import { EggStage } from './egg-stage.js';
 import { FinishOverlay } from './finish-overlay.js';
@@ -184,6 +186,7 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
         </label> : <p>本轮关卡 <strong>{course.title}</strong></p>}
         <p className="assist">{course.summary}</p>
       </div>
+      <MissionCard level={room.level} />
       <BuddySeats room={room} seat={seat} game={game} />
       <div className="room-actions">
         <button className="primary" disabled={disabled} onClick={() => game.ready(!ready, room.lobbyRevision)}>
@@ -211,6 +214,7 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
       <div><span className="chapter">双桨救援队</span><h1>{course.title}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
+    <StoryBubble level={run.level} run={run} />
     <div className="stage-hud">
       <span aria-live="polite">{riverGoal(run, room.clues, seat)}</span>
       <progress aria-label="河道进度" max={100} value={progress} />
@@ -220,7 +224,7 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
       {room.phase === 'paused' && <PauseOverlay />}
-      {room.phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(room)}
+      {room.phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(room)} story={storyFor(run.level)}
         title={run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 ${run.collisions} 次`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}

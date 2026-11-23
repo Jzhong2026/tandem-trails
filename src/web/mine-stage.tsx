@@ -5,6 +5,8 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { MineCanvas } from './mine-canvas.js';
 import { looksOf } from './buddy.js';
+import { StoryBubble } from './story-bubble.js';
+import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
@@ -73,6 +75,7 @@ export function MineStage({ run, phase, seat, game }: {
       <div><span className="chapter">{levelTitle} · {seat === 'left' ? '下层' : '上层'}</span><h1>{MINE_TITLE}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
+    <StoryBubble level={run.level} run={run} />
     <div className="stage-hud">
       <span aria-live="polite">{mineGoal(run, seat)}</span>
       <span className="mine-count">萤火虫 {fireflies} / 2</span>
@@ -80,7 +83,7 @@ export function MineStage({ run, phase, seat, game }: {
     <div className="stage-scene">
       <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} title="一起走出矿洞了！"
+      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="一起走出矿洞了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
         <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>

@@ -5,6 +5,8 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { EggCanvas } from './egg-canvas.js';
 import { looksOf } from './buddy.js';
+import { StoryBubble } from './story-bubble.js';
+import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
@@ -47,6 +49,7 @@ export function EggStage({ run, phase, seat, game }: {
       <div><span className="chapter">{levelTitle} · {seat === 'left' ? '左端' : '右端'}</span><h1>{EGG_TITLE}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
+    <StoryBubble level={run.level} run={run} />
     <div className="stage-hud">
       <span aria-live="polite">{goal(run, seat)}</span>
       <label className="egg-meter">
@@ -56,7 +59,7 @@ export function EggStage({ run, phase, seat, game }: {
     <div className="stage-scene">
       <EggCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} title="龙蛋回到巢里了！"
+      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="龙蛋回到巢里了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 软垫重试 ${run.drops} 次`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
         <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>

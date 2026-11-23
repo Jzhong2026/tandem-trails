@@ -5,6 +5,8 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { SubCanvas } from './sub-canvas.js';
 import { looksOf } from './buddy.js';
+import { StoryBubble } from './story-bubble.js';
+import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
@@ -35,6 +37,7 @@ export function SubStage({ run, phase, seat, game }: {
       <div><span className="chapter">{SUB_LEVEL_TITLE} · {seat === 'left' ? '升降驾驶员' : '前进驾驶员'}</span><h1>{SUB_TITLE}</h1></div>
       <button className="text-button" disabled={disabled} onClick={game.leave}>退出房间</button>
     </div>
+    <StoryBubble level={run.level} run={run} />
     <div className="stage-hud">
       <span aria-live="polite">{goal(run)}</span>
       <span className="sub-count">气泡 {bubbles} / 2{run.rescued ? ' · 小海马已上艇' : ''}</span>
@@ -42,7 +45,7 @@ export function SubStage({ run, phase, seat, game }: {
     <div className="stage-scene">
       <SubCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} title="小海马到珊瑚站了！"
+      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="小海马到珊瑚站了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 ${run.collisions} 次 · 气泡 ${bubbles} / 2`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
         <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>

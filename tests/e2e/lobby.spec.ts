@@ -26,6 +26,7 @@ test('an invalid room code explains itself while join stays disabled', async ({ 
 test('seats pick their own buddy and both devices see the same look', async ({ browser, baseURL }) => {
   await withCoop(browser, baseURL, async ({ host, guest }) => {
     await expect(host.locator('.buddy-card')).toHaveCount(2);
+    await expect(host.locator('.mission-card')).toContainText('鸭妈妈');
     await expect(guest.locator('.buddy-card.left strong')).toHaveText('芽芽');
 
     await host.getByRole('button', { name: '小熊', exact: true }).click();

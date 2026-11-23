@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import type { ChapterStory } from '../shared/story.js';
 import type { Looks } from './panorama-canvas.js';
 import { paintFinish } from './finish-art.js';
 
@@ -41,16 +42,25 @@ function FinishIllustration({ level, looks }: { level: GameLevel; looks: Looks }
   return <canvas className="finish-art" width={780} height={480} ref={canvas} aria-hidden="true" />;
 }
 
-export function FinishOverlay({ level, title, summary, children, looks = DEFAULT_APPEARANCE }: {
-  level: GameLevel; title: string; summary: string; children: ReactNode; looks?: Looks;
+export function FinishOverlay({ level, title, summary, children, looks = DEFAULT_APPEARANCE, story = null }: {
+  level: GameLevel; title: string; summary: string; children: ReactNode; looks?: Looks; story?: ChapterStory | null;
 }) {
   const theme = isEggLevel(level) ? 'egg' : isMineLevel(level) ? 'mine' : isSubLevel(level) ? 'sub' : 'river';
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setArmed(true), 450);
+    return () => clearTimeout(timer);
+  }, []);
   return <div className={`finish-scene finish-${theme}`}>
     <FinishIllustration level={level} looks={looks} />
     <div className="finish-result">
       <h2>{title}</h2>
       <p>{summary}</p>
-      <div className="finish-actions">{children}</div>
+      {story && <p className="finish-story">{story.outro}</p>}
+      {story && <p className="assist finish-hook">{story.nextHook}</p>}
+      <fieldset className="finish-actions-guard" disabled={!armed}>
+        <div className="finish-actions">{children}</div>
+      </fieldset>
     </div>
   </div>;
 }
