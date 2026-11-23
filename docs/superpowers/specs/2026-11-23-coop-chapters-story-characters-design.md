@@ -120,23 +120,23 @@ export function currentBeat(story: ChapterStory, progress: number): { npc: strin
 
 ### 5.1 river · bend：水流带 + 移动浮木
 - `RIVER_COURSES.bend.currents: { x, y, rx, ry, pushY }[]` = `[{470,200,70,120,80},{700,200,60,120,-80}]`。船在椭圆内每 tick `y += pushY * dt`；双桨同按抵消 100%，单桨抵消 50%，不划全推。岸 clamp 不变。
-- `rafts: { x, y, rx, ry, range, speed, phase }[]` = `[{582,276,47,40,70,0.9,0}]`，`y = base + sin(elapsedSec*speed+phase)*range`，碰撞判定用当前 y（替换该处静态 log）。
+- `rafts: { x, y, rx, ry, range, speed, phase }[]` = `[{582,292,47,40,60,0.9,0}]`，`y = base + sin(elapsedSec*speed+phase)*range`，碰撞判定用当前 y（替换该处静态 log）。基线取 292/幅度 60，使浮木最高点仍低于教学航线 y≈144，避免首学路径被挡。
 - 渲染：水流带画横向流线箭头，浮木画木纹+上下位移。
 
 ### 5.2 mine · mine2：矿车 + 水晶门
-- 下层地板开缺口 `[600,760]`；`cart = { from:600, to:760, y:lowerY, switchX:upper 平台 700, x:600, speed:120 }`。上层在新开关按住「操作机关」且下层站在车上（|x-cart.x|<24）时车前进；松开原地停（沿用桥的等待语义）。下层在车上时 x 跟随车。
-- `crystalGate = { x:880 }`：下层出口前的门，双方萤火虫都收集后才开（`fireflies.left && fireflies.right`），否则下层在门前等待并提示「等队友的萤火虫」。
+- 上层地板开缺口 `[760,860]`（出口前）；`cart = { from:760, to:860, switchX:740(下层), gateX:860, speed:120 }`。下层在新蓝色开关按住「操作机关」且上层站在车上（x ≥ from-2 且 ≤ cartX+24）时车前进；松开原地停（沿用桥的等待语义）。上层在车上且车未到站时 x 跟随车；到站后自由走到出口。
+- `gateX = 860`：下层出口前的水晶门，双方萤火虫都收集后才开（`fireflies.left && fireflies.right`），否则下层停在门前并提示「水晶门认光」。下层萤火虫移到 820（门内、开关外），形成「先拿灯→回开关→送队友→再过门」的回合。
 - 渲染：矿车=斗+两轮+轨道；水晶门=两扇半透明晶板，开启时向两侧滑。
 
 ### 5.3 egg · egg2：变向阵风 + 冰面段
-- 现有风口增加 `gust = { periodMs:2600, dir:'left'|'right' }`，按 `floor(elapsedMs/periodMs)%2` 切换。通过条件升级为：两人同按扶稳 **且** 迎风端（dir=left→left，dir=right→right）按住抬高。旗子渲染风向。
-- `ice = { from:340, to:430 }`：该段移动带惯性（速度以 6/s 趋向目标、3/s 衰减），松开不会立刻停，提示「冰面打滑，点按别长按」。
-- 渲染：风口旗+风向箭头；冰面浅蓝高光带。
+- 现有风口增加 `gustPeriodMs: 2600`，有效风向按 `floor(elapsedMs/period)%2` 翻转（`eggWindDir`）。稳态条件升级为**迎风端按住抬高且背风端松开**（`eggWindward`：dir=1→left），两人同按反而打滑——迫使两人报风向、轮流抬。 steady 时速度仍为 `WIND.speed`。
+- `ice = { from:560, to:600 }`：该段移动带惯性（`velocity` 以 6/s 趋向目标、3/s 衰减），松开不会立刻停，提示「冰面打滑，点按别长按」。
+- 渲染：风口流线随有效风向反向+「看旗轮流抬」路牌；冰面浅蓝高光带+「冰面点按」路牌。
 
 ### 5.4 sub · sub：洋流带 + 触手门
 - `currents: { x, y, rx, ry, pushX, pushY }[]` = `[{430,210,80,90,70,0},{640,150,70,80,0,60}]`。舱内每 tick 加推流；前进/后退按住抵消 pushX 100%，上浮/下潜按住抵消 pushY 100%，未按全推。
-- `tentacle = { x:760, periodMs:3200, openMs:1400, phase:0 }`：闭合时为实体礁石判定（碰回最近浮标），开启时可穿。周期由 elapsedMs 决定，双端可见同一节奏。
-- 渲染：洋流流线；触手门=四条摆动触手，开启时缩回。
+- `tentacle = { x:760, y:200, rx:18, ry:160, periodMs:3200, openMs:1400 }`：闭合时按椭圆实体判定（碰回最近浮标），开启时可穿（`tentacleOpen(elapsedMs)`）。周期由 elapsedMs 决定，双端可见同一节奏。
+- 渲染：洋流流线箭头；触手门=上下各三条摆动触手，开启时缩回岸边。
 
 ## 6. 测试与验收
 

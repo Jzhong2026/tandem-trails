@@ -23,10 +23,11 @@ test('one paddle turns in place and both paddles propel the boat', () => {
   assert.ok(run.elapsedMs > GAME_TICK_MS);
 });
 
-test('striking the second obstacle returns to the nearby checkpoint', () => {
+test('striking the drifting raft returns to the nearby checkpoint', () => {
   const run = createRiverRun();
   run.x = 451;
   run.y = 282;
+  run.elapsedMs = 2577;
   paddle(run, 35, true, true);
   assert.equal(run.collisions, 1);
   assert.equal(run.x, 449);
