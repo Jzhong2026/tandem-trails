@@ -7,6 +7,8 @@ import { usesMovementControls } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { IDLE_MOVEMENT, MOVEMENT_ACTIONS } from '../shared/movement.js';
 import type { MovementAction, MovementInput } from '../shared/movement.js';
+import type { Appearance } from '../shared/buddy.js';
+import { loadBuddyPreference } from './buddy-save.js';
 
 const storageKey = 'tandem-trails.session';
 const timeoutMs = 4500;
@@ -58,7 +60,9 @@ export function useRoom() {
     saveSession({ code: value.room.code, token: value.token });
     setSeat(value.seat);
     setRoom(value.room);
-  }, [saveSession]);
+    const preference = loadBuddyPreference(value.seat);
+    if (preference) socket.emit('room:appearance', preference);
+  }, [saveSession, socket]);
 
   const reset = useCallback(() => {
     saveSession(null);
@@ -158,6 +162,8 @@ export function useRoom() {
     selectLevel: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:select-level', level), setRoom),
     ready: (ready: boolean, lobbyRevision: number) => command<RoomView>(() =>
       socket.timeout(timeoutMs).emitWithAck('room:ready', ready, lobbyRevision), setRoom),
+    setAppearance: (appearance: Appearance) => command<RoomView>(() =>
+      socket.timeout(timeoutMs).emitWithAck('room:appearance', appearance), setRoom),
     replay: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:replay'), setRoom),
     next: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:next', level), setRoom),
     shareClue: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('game:share-clue'), setRoom),

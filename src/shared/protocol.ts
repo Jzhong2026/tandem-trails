@@ -5,6 +5,7 @@ import type { MineView } from './mine.js';
 import type { EggView } from './egg.js';
 import type { SubView } from './sub.js';
 import type { MovementInput } from './movement.js';
+import type { Appearance } from './buddy.js';
 
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 6;
@@ -21,6 +22,7 @@ export type RoomError = 'bad-code' | 'missing' | 'full' | 'in-room' | 'not-membe
 export interface PlayerView {
   online: boolean;
   ready: boolean;
+  appearance: Appearance;
 }
 
 export interface FogClues {
@@ -61,6 +63,7 @@ export interface ClientEvents {
   'room:resume': (session: Session, respond: Respond<Admission>) => void;
   'room:select-level': (level: GameLevel, respond: Respond<RoomView>) => void;
   'room:ready': (ready: boolean, lobbyRevision: number, respond: Respond<RoomView>) => void;
+  'room:appearance': (appearance: Appearance, respond?: Respond<RoomView>) => void;
   'room:replay': (respond: Respond<RoomView>) => void;
   'room:next': (level: GameLevel, respond: Respond<RoomView>) => void;
   'room:leave': (respond: Respond<null>) => void;

@@ -6,8 +6,10 @@ import type { TestContext } from 'node:test';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { createGameServer } from '../src/server/game-server.js';
+import { BODY_DEFAULT_NAME, DEFAULT_APPEARANCE } from '../src/shared/buddy.js';
 import type { GameLevel } from '../src/shared/game-levels.js';
 import type { Ack, ClientEvents, ServerEvents, RoomView, Admission } from '../src/shared/protocol.js';
+import type { Appearance } from '../src/shared/buddy.js';
 
 type Client = Socket<ServerEvents, ClientEvents>;
 
@@ -295,4 +297,33 @@ test('the submarine gives each seat its own axis and ignores paddles', async t =
   const moved = await cruised;
   assert.ok(moved.run?.level === 'sub');
   assert.ok(moved.run.y > 230);
+});
+
+test('appearance syncs to both seats, survives reconnect and sanitizes invalid input', async t => {
+  const connect = await fixture(t);
+  const [host, guest] = await Promise.all([connect(), connect()]);
+  const first = await create(host);
+  assert.deepEqual(first.room.players.left?.appearance, DEFAULT_APPEARANCE.left);
+  const joined = accepted<Admission>(await guest.timeout(1000).emitWithAck('room:join', first.room.code));
+  assert.deepEqual(joined.room.players.right?.appearance, DEFAULT_APPEARANCE.right);
+
+  const seen = roomWhen(guest, current => current.players.left?.appearance.name === '熊墩墩');
+  const updated = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:appearance',
+    { body: 'bear', palette: 4, size: 'big', name: '熊墩墩' }));
+  assert.equal(updated.players.left?.appearance.body, 'bear');
+  assert.equal((await seen).players.left?.appearance.palette, 4);
+
+  const fallback = accepted<RoomView>(await host.timeout(1000).emitWithAck('room:appearance',
+    { body: 'dragon', palette: 99, name: '   ' } as unknown as Appearance));
+  assert.equal(fallback.players.left?.appearance.body, 'bear');
+  assert.equal(fallback.players.left?.appearance.palette, 5);
+  assert.equal(fallback.players.left?.appearance.name, BODY_DEFAULT_NAME.bear);
+
+  await guest.timeout(1000).emitWithAck('room:appearance', { body: 'fox', palette: 2, size: 'small', name: '狐小焰' });
+  guest.disconnect();
+  const back = await connect();
+  const resumed = accepted<Admission>(await back.timeout(1000).emitWithAck('room:resume',
+    { code: first.room.code, token: joined.token }));
+  assert.equal(resumed.seat, 'right');
+  assert.deepEqual(resumed.room.players.right?.appearance, { body: 'fox', palette: 2, size: 'small', name: '狐小焰' });
 });

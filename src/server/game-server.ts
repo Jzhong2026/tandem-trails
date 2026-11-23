@@ -221,6 +221,20 @@ export function createGameServer({
       updateRoom(respond, (room, seat, now) => room.shareClue(seat, now) ? null : 'wrong-phase');
     });
 
+    socket.on('room:appearance', (appearance, respond) => {
+      const now = performance.now();
+      const membership = memberOf(socket, now);
+      if (!membership) {
+        if (typeof respond === 'function') respond({ ok: false, error: 'not-member' });
+        return;
+      }
+      membership.room.setAppearance(membership.seat, appearance, now);
+      if (typeof respond === 'function') {
+        respond({ ok: true, value: membership.room.view(membership.seat, now) });
+      }
+      broadcast(membership.room, now);
+    });
+
     socket.on('room:leave', respond => {
       if (typeof respond !== 'function') return;
       const membership = memberOf(socket, performance.now());

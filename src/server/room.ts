@@ -1,4 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
+import { DEFAULT_APPEARANCE, sanitizeAppearance } from '../shared/buddy.js';
+import type { Appearance } from '../shared/buddy.js';
 import { createEgg, eggView, isEggView, stepEgg } from '../shared/egg.js';
 import type { EggView } from '../shared/egg.js';
 import { GAME_LEVELS, isEggLevel, isMineLevel, isSubLevel, nextGameLevel, usesMovementControls } from '../shared/game-levels.js';
@@ -25,6 +27,7 @@ interface Member {
   ready: boolean;
   pressedUntil: number;
   movement: { controls: MovementInput; until: number } | null;
+  appearance: Appearance;
 }
 
 export class Room {
@@ -43,6 +46,7 @@ export class Room {
     this.members[seat] = {
       token: randomBytes(24).toString('base64url'), socketId,
       disconnectedAt: null, ready: false, pressedUntil: 0, movement: null,
+      appearance: { ...DEFAULT_APPEARANCE[seat] },
     };
     this.activeAt = now;
   }
@@ -76,6 +80,14 @@ export class Room {
       const disconnectedAt = this.members[seat]?.disconnectedAt;
       return disconnectedAt != null && now - disconnectedAt >= reservationMs;
     });
+  }
+
+  setAppearance(seat: Seat, input: unknown, now: number) {
+    const member = this.members[seat];
+    if (!member) return false;
+    member.appearance = sanitizeAppearance(input, member.appearance);
+    this.activeAt = now;
+    return true;
   }
 
   selectLevel(level: GameLevel, now: number) {
@@ -178,7 +190,7 @@ export class Room {
   view(seat: Seat, now: number): RoomView {
     const playerView = (seat: Seat): PlayerView | null => {
       const member = this.members[seat];
-      return member ? { online: member.socketId !== null, ready: member.ready } : null;
+      return member ? { online: member.socketId !== null, ready: member.ready, appearance: member.appearance } : null;
     };
     return {
       code: this.code, phase: this.phase, level: this.level, lobbyRevision: this.lobbyRevision,
