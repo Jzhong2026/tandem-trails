@@ -5,7 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { EggCanvas } from './egg-canvas.js';
 import { looksOf } from './buddy.js';
-import { StoryBubble } from './story-bubble.js';
+import { StoryBubble, ChapterIntro } from './story-bubble.js';
 import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
@@ -16,6 +16,9 @@ type Game = ReturnType<typeof useRoom>;
 function goal(run: EggView, seat: Seat) {
   if (run.finished) return '龙蛋已经回到巢里';
   if (run.recoveryMs > 0) return '龙蛋落到软垫上了，从这里重新抬。';
+  if (run.raised.left && run.raised.right && run.tilt === 0 && eggSlope(run.x,run.level))
+    return '两人扶稳了，等蛋回到中间再走';
+  if (Math.abs(run.roll) > .55) return '快滑下来了！两人松开方向键、一起按住抬高，让蛋回到中间';
   const wind = eggWind(run.x, run.level);
   if (wind) {
     if (wind.gustPeriodMs) {
@@ -71,6 +74,7 @@ export function EggStage({ run, phase, seat, game }: {
       </label>
     </div>
     <div className="stage-scene">
+      <ChapterIntro level={run.level}/>
       <EggCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="龙蛋回到巢里了！"

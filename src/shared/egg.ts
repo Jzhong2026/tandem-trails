@@ -165,9 +165,11 @@ export function stepEgg(run: EggView, inputs: MovementInputs) {
     }
   }
   // A level stretcher can settle even while the players stop to coordinate.
+  const resting = !movementDirection(inputs.left) && !movementDirection(inputs.right) && Math.abs(run.velocity) < 2;
+  if (resting && braced) run.tilt = 0;
   if (run.tilt === 0) run.roll *= 1 - layout.settleRate * seconds;
-  const pad = [...layout.slopes, ...layout.winds].findLast(section => section.pad <= run.x)?.pad;
-  if (pad !== undefined) run.checkpoint = Math.max(run.checkpoint, pad);
+  const pad = Math.max(layout.start, ...[...layout.slopes, ...layout.winds].map(section => section.pad).filter(x => x <= run.x));
+  run.checkpoint = Math.max(run.checkpoint, pad);
   if (Math.abs(run.roll) >= 1) {
     run.x = run.checkpoint;
     run.roll = 0;

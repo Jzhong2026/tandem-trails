@@ -78,7 +78,7 @@ export interface Player {
   hearts: number;
   onGround: boolean; facing: 1 | -1; big: boolean; fire: boolean; crouch: boolean;
   starMs: number; invulnMs: number; hurtMs: number; winMs: number;
-  coyoteMs: number; bufferMs: number; jumpHeld: boolean; springRise: boolean;
+  airJump: boolean; coyoteMs: number; bufferMs: number; jumpHeld: boolean; springRise: boolean;
   animMs: number; pose: Pose; riding: number; fireCooldownMs: number; swimMs: number;
   bubbleMs: number; squashMs: number; linkMs: number; cheerMs: number;
   dashMs: number; dashCooldownMs: number; guardMs: number; guardCooldownMs: number;
@@ -159,7 +159,7 @@ function makePlayer(index: number, x: number, y: number, hearts: number, role: Q
     index, role, x, y, vx: 0, vy: 0, w: 32, h: 42, hearts,
     onGround: false, facing: 1, big: false, fire: false, crouch: false,
     starMs: 0, invulnMs: 0, hurtMs: 0, winMs: 0,
-    coyoteMs: 0, bufferMs: 0, jumpHeld: false, springRise: false,
+    airJump: true, coyoteMs: 0, bufferMs: 0, jumpHeld: false, springRise: false,
     animMs: index * 320, pose: 'idle', riding: -1, fireCooldownMs: 0, swimMs: 0,
     bubbleMs: 0, squashMs: 0, linkMs: 0, cheerMs: 0,
     dashMs: 0, dashCooldownMs: 0, guardMs: 0, guardCooldownMs: 0,
@@ -756,7 +756,8 @@ function stepPlayer(run: QuestRun, player: Player, input: QuestInput, dt: number
     player.vx = Math.abs(player.vx) <= friction ? 0 : player.vx - Math.sign(player.vx) * friction;
   }
 
-  if (input.jump && !player.jumpHeld) player.bufferMs = PHYS.bufferMs;
+  const jumpPressed = input.jump && !player.jumpHeld;
+  if (jumpPressed) player.bufferMs = PHYS.bufferMs;
   if (!input.jump && player.jumpHeld && player.vy < -230 && !player.springRise) player.vy = -230;
   player.jumpHeld = input.jump;
 
@@ -770,10 +771,12 @@ function stepPlayer(run: QuestRun, player: Player, input: QuestInput, dt: number
     }
     player.vy = Math.min(PHYS.waterMaxFall, player.vy + PHYS.waterGravity * dt);
   } else {
-    if (player.onGround) player.coyoteMs = PHYS.coyoteMs;
+    if (player.onGround) { player.coyoteMs = PHYS.coyoteMs; player.airJump = true; }
     else player.coyoteMs = Math.max(0, player.coyoteMs - dtMs);
-    if (player.bufferMs > 0 && player.coyoteMs > 0) {
-      player.vy = PHYS.jump;
+    const extraJump = run.assist && jumpPressed && player.airJump && player.coyoteMs <= 0 && player.vy >= 0;
+    if (player.bufferMs > 0 && (player.coyoteMs > 0 || extraJump)) {
+      if (extraJump) player.airJump = false;
+      player.vy = PHYS.jump * (extraJump ? .82 : 1);
       player.onGround = false;
       player.coyoteMs = 0;
       player.bufferMs = 0;

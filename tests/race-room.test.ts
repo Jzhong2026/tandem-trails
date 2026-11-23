@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { RaceRoom } from '../src/server/race-room.js';
-import { RACE_QUESTIONS } from '../src/shared/race-questions.js';
+import { questionsFor } from '../src/server/curriculum.js';
+const RACE_QUESTIONS = questionsFor({grade:2,term:1});
 import type { RaceSeat } from '../src/shared/race-protocol.js';
 
 function room(code = 'ABC234') {
@@ -36,7 +37,7 @@ function answerWrongly(instance: RaceRoom, seat: RaceSeat) {
   const correctText = bank.options[bank.answer];
   const index = quiz.options.indexOf(correctText);
   assert.ok(index >= 0, 'correct option present');
-  instance.answer(seat, (index + 1) % 4, 0);
+  instance.answer(seat, (index + 1) % quiz.options.length, 0);
 }
 
 function playToCompletion(instance: RaceRoom, seat: RaceSeat, wrongFirst = false) {
@@ -154,7 +155,7 @@ test('the wrong answers are listed for review and the next race waits for it', (
   assert.equal(view.review.length, 1, 'one wrong answer to review');
   const entry = view.review[0];
   assert.ok(entry.prompt.length > 0);
-  assert.equal(entry.options.length, 4);
+  assert.ok(entry.options.length >= 2 && entry.options.length <= 4);
   assert.ok(entry.explain.length > 0);
   assert.equal(view.reviewDone, false);
   assert.equal(view.players[0]!.reviewWrong, 1);

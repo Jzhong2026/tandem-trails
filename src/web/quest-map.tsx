@@ -77,7 +77,7 @@ export function QuestMap({ save, mode, assist, looks, onLooks, onMode, onAssist,
           <strong>双人同乐</strong><span>前锋 + 后卫 · 更容易</span>
         </button>
         <button className="quest-mode" aria-pressed={assist} onClick={() => onAssist(!assist)}>
-          <strong>轻松模式</strong><span>{assist ? '已开启 · 不会失败' : '关闭 · 心会扣完'}</span>
+          <strong>轻松模式</strong><span>{assist ? '已开启 · 空中再按跳跃可二段跳' : '关闭 · 心会扣完'}</span>
         </button>
         <button className="quest-mode" aria-pressed={save.free} onClick={() => onFree(!save.free)}>
           <strong>自由选关</strong><span>{save.free ? '全部关卡可选' : '按顺序解锁'}</span>

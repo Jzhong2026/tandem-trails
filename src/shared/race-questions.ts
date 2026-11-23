@@ -1,11 +1,12 @@
-export type RaceSubject = 'chinese' | 'math';
+export type RaceSubject = 'chinese' | 'math' | 'english';
 
 export interface RaceQuestion {
   id: string;
+  parts?: [string,string];
   subject: RaceSubject;
   topic: string;
   prompt: string;
-  options: [string, string, string, string];
+  options: string[];
   answer: number;
   explain: string;
 }

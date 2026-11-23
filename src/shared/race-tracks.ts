@@ -1,3 +1,6 @@
+import { DEFAULT_COURSE } from './study.js';
+import type { StudyCourse } from './study.js';
+
 export type RaceTheme = 'day' | 'sunset' | 'night';
 
 export interface RaceTrackDef {
@@ -33,4 +36,46 @@ export const RACE_TRACKS: RaceTrackDef[] = [
 
 export function trackById(id: string): RaceTrackDef {
   return RACE_TRACKS.find(track => track.id === id) ?? RACE_TRACKS[0];
+}
+export interface NumberGate {
+  x: number;
+  prompt: string;
+  values: number[];
+  answerLane: number;
+}
+
+// One untimed pit stop follows each moving number challenge. Gate positions and
+// lane labels are shared by the renderer and the authoritative race simulation.
+export function numberGates(track: RaceTrackDef, course:StudyCourse = DEFAULT_COURSE): NumberGate[] {
+  return track.stations.map((station, index) => {
+    const start = track.stations[index - 1] ?? 0;
+    const a = 3 + (track.seed + index) % 6;
+    const b = 2 + (track.seed + 2 * index) % 5;
+    const tasks = [
+      { prompt: `${a} + ${b}`, result: a + b },
+      { prompt: `${a} × ${b}`, result: a * b },
+      { prompt: `${a * b} ÷ ${b}`, result: a },
+      { prompt: `${10 + a} − ${b}`, result: 10 + a - b },
+    ];
+    if (course.grade === 2 && course.term === 1) tasks[2] = {prompt:`${a} × 2`,result:a*2};
+    if (course.grade === 2 && course.term === 2) tasks[0] = {prompt:`${a*100} + ${b*10}`,result:a*100+b*10};
+    if (course.grade >= 3) {
+      const tens = a*10;
+      tasks[0] = {prompt:`${tens} + ${b*2}`,result:tens+b*2};
+      tasks[1] = {prompt:`${a+10} × ${b}`,result:(a+10)*b};
+      tasks[2] = {prompt:`${a*b*10} ÷ ${b}`,result:a*10};
+      tasks[3] = {prompt:`(${a} + ${b}) × 2`,result:(a+b)*2};
+    }
+    if (course.grade >= 5) {
+      tasks[0] = {prompt:`${a}.5 × 2`,result:a*2+1};
+      tasks[1] = {prompt:`${b} ÷ 0.5`,result:b*2};
+    }
+    if (course.grade === 6) tasks[2] = course.term===1
+      ? {prompt:`(−${a}) × (−${b})`,result:a*b} : {prompt:`${a*20} × 25%`,result:a*5};
+    const task = tasks[index % tasks.length];
+    const answerLane = (track.seed + index) % 3;
+    const values = [task.result + 2, task.result - 1, task.result + 1];
+    values[answerLane] = task.result;
+    return { x: Math.round(start + track.speed * 5.8), prompt: task.prompt, values, answerLane };
+  });
 }

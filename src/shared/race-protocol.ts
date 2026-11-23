@@ -1,3 +1,6 @@
+import type { StudyCourse } from './study.js';
+import type { TruckId } from './trucks.js';
+import type { LearningMode, LearningAction, LearningView, MatchMode } from './learning.js';
 import type { PlayerStatus } from './race.js';
 import type { RaceSubject } from './race-questions.js';
 import type { Ack, ClosedReason, Respond, RoomError, Session } from './protocol.js';
@@ -10,6 +13,7 @@ export const RACE_NAME_MAX = 8;
 export type RacePhase = 'lobby' | 'playing' | 'finished';
 
 export interface RacePlayerView {
+  truck: TruckId;
   seat: RaceSeat;
   name: string;
   color: number;
@@ -17,6 +21,7 @@ export interface RacePlayerView {
   ready: boolean;
   x: number;
   lane: number;
+  lastGateCorrect: boolean | null;
   fuel: number;
   status: PlayerStatus;
   hits: number;
@@ -40,6 +45,7 @@ export interface RaceQuizView {
   options: string[];
   picked: number | null;
   wasCorrect: boolean | null;
+  gainedFuel: boolean;
   answer: number | null;
   explain: string | null;
   correct: number;
@@ -75,6 +81,9 @@ export interface RaceStandings {
 }
 
 export interface RaceRoomView {
+  course: StudyCourse;
+  mode: MatchMode;
+  learning: LearningView | null;
   code: string;
   phase: RacePhase;
   trackId: string;
@@ -97,11 +106,13 @@ export interface RaceAdmission {
 }
 
 export interface RaceConfig {
+  course?: StudyCourse;
   trackId?: string;
   startFuel?: number;
 }
 
 export interface RaceProfile {
+  truck?: TruckId;
   name?: string;
   color?: number;
 }
@@ -111,6 +122,8 @@ export type RaceRespond<T> = Respond<T>;
 export type { ClosedReason, RoomError, Session };
 
 export interface RaceClientEvents {
+  'learning:create': (mode: LearningMode, respond: RaceRespond<RaceAdmission>) => void;
+  'learning:act': (action: LearningAction) => void;
   'race:create': (respond: RaceRespond<RaceAdmission>) => void;
   'race:join': (code: string, respond: RaceRespond<RaceAdmission>) => void;
   'race:resume': (session: Session, respond: RaceRespond<RaceAdmission>) => void;

@@ -1,8 +1,13 @@
 import * as THREE from 'three';
+import { buildTruck, canvasTexture } from './truck-model.js';
+import type { TruckRig } from './truck-model.js';
+import type { StudyCourse } from '../shared/study.js';
+import type { TruckId } from '../shared/trucks.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { Obstacle, PlayerStatus } from '../shared/race.js';
+import { numberGates } from '../shared/race-tracks.js';
 import type { RaceTrackDef } from '../shared/race-tracks.js';
 import { CAM_BACK, CAR_COLORS, CAR_DARK, PALETTES } from './race-render.js';
 import type { SceneryItem, ThemePalette } from './race-render.js';
@@ -15,6 +20,7 @@ const LANE_M = 200 * XU;
 const ROAD_HALF_M = 300 * XU;
 
 export interface SceneFrame {
+  showcase?: boolean;
   track: RaceTrackDef;
   cameraX: number;
   laneY: number;
@@ -33,18 +39,6 @@ export interface SceneAnchors {
   exhaustX: number; exhaustY: number;
   hitX: number; hitY: number;
   pxPerM: number;
-}
-
-function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) {
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
-  draw(ctx);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
 }
 
 function rand(seed: number) {
@@ -117,19 +111,6 @@ function ridgeGeometry(width: number, segs: number, hMin: number, hMax: number, 
   return geo;
 }
 
-interface TruckRig {
-  group: THREE.Group;
-  paint: THREE.MeshPhysicalMaterial;
-  trim: THREE.MeshStandardMaterial;
-  tail: THREE.MeshStandardMaterial;
-  amber: THREE.MeshStandardMaterial;
-  head: THREE.MeshStandardMaterial;
-  marker: THREE.MeshStandardMaterial;
-  spins: THREE.Group[];
-  steers: THREE.Group[];
-  beams: THREE.SpotLight[];
-}
-
 export class RaceScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -156,10 +137,10 @@ export class RaceScene {
   private wheelSpin = 0;
   private truckX = 0;
   private truckZ = 0;
-  private envTex: THREE.Texture;
+  private envTarget: THREE.WebGLRenderTarget;
   private disposed = false;
 
-  constructor(canvas: HTMLCanvasElement, track: RaceTrackDef, obstacles: Obstacle[], scenery: SceneryItem[]) {
+  constructor(canvas: HTMLCanvasElement, track: RaceTrackDef, obstacles: Obstacle[], scenery: SceneryItem[], truck: TruckId = 'scania', course?: StudyCourse) {
     this.track = track;
     this.palette = PALETTES[track.theme];
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -172,9 +153,11 @@ export class RaceScene {
     this.scene.fog = new THREE.Fog(this.palette.fog, 120, 430);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const studio = new RoomEnvironment();
+    this.envTarget = pmrem.fromScene(studio, 0.04);
+    studio.dispose();
     pmrem.dispose();
-    this.scene.environment = this.envTex;
+    this.scene.environment = this.envTarget.texture;
     this.scene.environmentIntensity = track.theme === 'night' ? 0.1 : track.theme === 'sunset' ? 0.25 : 0.3;
 
     const night = this.palette.night;
@@ -215,9 +198,11 @@ export class RaceScene {
     });
     this.buildScenery(scenery);
     this.buildObstacles(obstacles);
+    this.buildNumberGates(course);
     this.buildStations();
     this.buildFinish();
-    this.truck = this.buildTruck();
+    this.truck = buildTruck(truck, night);
+    this.plateTex = this.truck.plateTex;
     this.scene.add(this.truck.group);
   }
 
@@ -420,7 +405,7 @@ export class RaceScene {
 
   /* ----------  roadside ---------- */
 
-  private buildScenery(scenery: SceneryItem[]) {
+  private buildScenery(scenery: SceneryItem[], truck: TruckId = 'scania', course?: StudyCourse) {
     const p = this.palette;
     const veg = new Bucket();
     const rockB = new Bucket();
@@ -561,7 +546,7 @@ export class RaceScene {
     const rocks = new Bucket();
     const r = rand(this.track.seed ^ 0x0b57);
     for (const ob of obstacles) {
-      const x = (ob.lane - 1) * LANE_M;
+      const x = (1 - ob.lane) * LANE_M;
       const z = ob.x * ZU;
       if (ob.kind === 'cone') {
         for (const off of [-0.95, 0, 0.95]) {
@@ -589,6 +574,38 @@ export class RaceScene {
     const rockMat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 2, specular: new THREE.Color('#0a0a0a'), flatShading: true });
     for (const mesh of [cones.build(coneMat), barrels.build(barrelMat), rocks.build(rockMat)]) {
       if (mesh) this.scene.add(mesh);
+    }
+  }
+
+  private buildNumberGates(course?: StudyCourse) {
+    const metal = new THREE.MeshStandardMaterial({ color: '#17695e', metalness: 0.45, roughness: 0.48 });
+    for (const gate of numberGates(this.track,course)) {
+      const z = gate.x * ZU;
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.24, 6.6, 8), metal);
+        post.position.set(side * (ROAD_HALF_M + 0.45), 3.3, z);
+        this.scene.add(post);
+      }
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF_M * 2 + 1.2, 0.28, 0.28), metal);
+      bar.position.set(0, 6.4, z);
+      this.scene.add(bar);
+      gate.values.forEach((value, lane) => {
+        const map = canvasTexture(192, 128, ctx => {
+          ctx.fillStyle = '#113c43';
+          ctx.fillRect(0, 0, 192, 128);
+          ctx.strokeStyle = '#80f4cd';
+          ctx.lineWidth = 6;
+          ctx.strokeRect(5, 5, 182, 118);
+          ctx.fillStyle = '#fff4c9';
+          ctx.textAlign = 'center';
+          ctx.font = 'bold 82px system-ui';
+          ctx.fillText(String(value), 96, 92);
+        });
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.45, 1.63), new THREE.MeshBasicMaterial({ map }));
+        sign.rotation.y = Math.PI;
+        sign.position.set((1 - lane) * LANE_M, 5.65, z - 0.18);
+        this.scene.add(sign);
+      });
     }
   }
 
@@ -725,222 +742,6 @@ export class RaceScene {
 
   /* ---------- Scania 牵引车 ---------- */
 
-  private buildTruck(): TruckRig {
-    const group = new THREE.Group();
-    const paint = new THREE.MeshPhysicalMaterial({
-      color: CAR_COLORS[0], metalness: 0.3, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.12,
-    });
-    const trim = new THREE.MeshStandardMaterial({ color: CAR_DARK[0], metalness: 0.6, roughness: 0.45 });
-    const chrome = new THREE.MeshStandardMaterial({ color: '#d8dde2', metalness: 1, roughness: 0.22 });
-    const alu = new THREE.MeshStandardMaterial({ color: '#9aa0a8', metalness: 0.9, roughness: 0.38 });
-    const black = new THREE.MeshStandardMaterial({ color: '#14171c', metalness: 0.15, roughness: 0.85, side: THREE.DoubleSide });
-    const tire = new THREE.MeshStandardMaterial({ color: '#1a1d22', roughness: 0.95 });
-    const glass = new THREE.MeshPhysicalMaterial({ color: '#0e1a24', metalness: 1, roughness: 0.06, envMapIntensity: 1.5 });
-    const tail = new THREE.MeshStandardMaterial({ color: '#5a0f12', emissive: new THREE.Color('#ff2a2a'), emissiveIntensity: 1.1, roughness: 0.4 });
-    const amber = new THREE.MeshStandardMaterial({ color: '#6b4a12', emissive: new THREE.Color('#ffa028'), emissiveIntensity: 1.2, roughness: 0.4 });
-    const head = new THREE.MeshStandardMaterial({ color: '#cfd8e0', emissive: new THREE.Color('#fff2cc'), emissiveIntensity: this.palette.night ? 3.2 : 0.25, roughness: 0.25 });
-    const marker = new THREE.MeshStandardMaterial({ color: '#6b4a12', emissive: new THREE.Color('#ffb347'), emissiveIntensity: 1.4, roughness: 0.4 });
-
-    const part = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number,
-      rx = 0, ry = 0, rz = 0) => {
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(x, y, z);
-      mesh.rotation.set(rx, ry, rz);
-      mesh.castShadow = true;
-      group.add(mesh);
-      return mesh;
-    };
-    const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-    const rbox = (w: number, h: number, d: number, r: number) => new RoundedBoxGeometry(w, h, d, 3, r);
-
-    /* 底盘 */
-    for (const side of [-1, 1]) part(box(0.12, 0.26, 5.7), black, side * 0.45, 0.56, -0.1);
-    part(box(1.9, 0.16, 0.5), black, 0, 0.5, -2.6);
-    for (const cz of [-1.15, -2.2]) part(box(1.0, 0.12, 0.1), black, 0, 0.5, cz);
-
-    /* 驾驶室：高顶平头造型 */
-    part(rbox(2.5, 2.05, 2.3, 0.1), paint, 0, 2.0, 1.75);
-    part(rbox(2.42, 0.74, 2.1, 0.22), paint, 0, 3.34, 1.55);
-    part(box(2.44, 0.14, 0.5), trim, 0, 3.06, 2.72, -0.12);
-    part(box(2.24, 1.0, 0.06), glass, 0, 2.5, 2.88, -0.16);
-    for (const side of [-1, 1]) {
-      part(box(0.05, 0.03, 0.62), black, side * 0.5, 2.16, 2.94, -0.16, 0, side * 0.35);
-      part(box(0.06, 0.74, 1.4), glass, side * 1.26, 2.42, 1.95);
-      part(box(0.02, 0.18, 2.2), trim, side * 1.255, 1.02, 1.75);
-      part(box(0.02, 1.6, 0.03), black, side * 1.26, 1.85, 1.02);
-      part(box(0.05, 0.07, 0.3), chrome, side * 1.27, 1.72, 1.25);
-      part(box(0.34, 0.1, 0.9), black, side * 1.16, 0.52, 1.5);
-      part(box(0.3, 0.08, 0.7), black, side * 1.16, 0.82, 1.45);
-    }
-
-    /* 前脸：格栅 / 大灯 / 保险杠 */
-    for (const y of [1.32, 1.52, 1.72]) part(box(1.9, 0.13, 0.07), black, 0, y, 2.92);
-    part(box(2.1, 0.1, 0.06), chrome, 0, 1.86, 2.93);
-    for (const side of [-1, 1]) {
-      part(box(0.36, 0.44, 0.1), head, side * 1.02, 1.06, 2.92);
-      part(box(0.12, 0.44, 0.1), amber, side * 1.24, 1.06, 2.92);
-    }
-    part(rbox(2.52, 0.52, 0.42, 0.08), trim, 0, 0.62, 2.95);
-    for (const side of [-1, 1]) part(box(0.16, 0.12, 0.06), head, side * 0.85, 0.5, 3.16);
-
-    /* 后视镜 */
-    for (const side of [-1, 1]) {
-      part(new THREE.CylinderGeometry(0.028, 0.028, 0.5, 6), black, side * 1.44, 2.86, 2.5, 0, 0, side * 1.25);
-      part(rbox(0.14, 0.62, 0.34, 0.05), paint, side * 1.66, 2.72, 2.42);
-      part(box(0.02, 0.52, 0.26), glass, side * 1.66, 2.72, 2.24);
-    }
-
-    /* 车尾：后窗 / 标识 / 排气 / 油箱 */
-    part(box(1.58, 0.7, 0.04), black, 0, 2.5, 0.56);
-    part(box(1.5, 0.62, 0.06), glass, 0, 2.5, 0.58);
-    for (const side of [-1, 1]) part(box(0.03, 1.5, 0.02), black, side * 0.62, 1.7, 0.57);
-    part(box(2.3, 0.06, 0.06), trim, 0, 3.66, 0.5);
-    part(new THREE.CylinderGeometry(0.085, 0.085, 2.5, 12), chrome, -1.32, 2.15, 0.42);
-    part(new THREE.CylinderGeometry(0.11, 0.11, 1.1, 12), alu, -1.32, 1.55, 0.42);
-    part(new THREE.CylinderGeometry(0.1, 0.085, 0.2, 12), black, -1.32, 3.45, 0.42);
-    part(new THREE.CylinderGeometry(0.34, 0.34, 1.5, 16), alu, 1.22, 0.72, -0.7, Math.PI / 2);
-    for (const dz of [-0.4, 0.4]) part(box(0.06, 0.72, 0.08), black, 1.22, 0.72, -0.7 + dz);
-    part(box(0.5, 0.6, 1.2), black, -1.2, 0.72, -0.8);
-
-    /* 车轮：前转向 + 后双胎 */
-    const spins: THREE.Group[] = [];
-    const steers: THREE.Group[] = [];
-    const wheel = (x: number, z: number, width: number, dual: boolean, steer: boolean) => {
-      const steerGroup = new THREE.Group();
-      steerGroup.position.set(x, 0.52, z);
-      const spin = new THREE.Group();
-      steerGroup.add(spin);
-      const offsets = dual ? [-0.17, 0.17] : [0];
-      for (const off of offsets) {
-        const tireMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, width, 22), tire);
-        tireMesh.rotation.z = Math.PI / 2;
-        tireMesh.position.x = off;
-        tireMesh.castShadow = true;
-        spin.add(tireMesh);
-        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, width + 0.03, 16), chrome);
-        rim.rotation.z = Math.PI / 2;
-        rim.position.x = off + (dual ? Math.sign(off) * 0.02 : 0);
-        spin.add(rim);
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, width + 0.08, 10), alu);
-        hub.rotation.z = Math.PI / 2;
-        hub.position.x = off + (dual ? Math.sign(off) * 0.04 : 0);
-        spin.add(hub);
-        for (let i = 0; i < 6; i++) {
-          const spoke = new THREE.Mesh(box(width + 0.05, 0.09, 0.4), alu);
-          spoke.position.x = off + (dual ? Math.sign(off) * 0.03 : 0);
-          spoke.rotation.x = (i / 6) * Math.PI;
-          spin.add(spoke);
-        }
-      }
-      group.add(steerGroup);
-      spins.push(spin);
-      if (steer) steers.push(steerGroup);
-    };
-    wheel(-1.02, 2.15, 0.32, false, true);
-    wheel(1.02, 2.15, 0.32, false, true);
-    wheel(-1.08, -1.75, 0.3, true, false);
-    wheel(1.08, -1.75, 0.3, true, false);
-
-    /* 后轮挡泥板 / 尾灯 / 牌照 / 挡泥帘 */
-    part(box(1.7, 0.55, 1.0), black, 0, 0.78, -2.2);
-    part(box(2.44, 0.34, 0.12), black, 0, 0.86, -2.99);
-    for (const side of [-1, 1]) {
-      part(new THREE.CylinderGeometry(0.68, 0.68, 0.82, 18, 1, true, 0, Math.PI), black, side * 1.08, 0.52, -1.75, 0, 0, Math.PI / 2);
-      part(box(0.52, 0.24, 0.08), tail, side * 0.95, 0.86, -3.06);
-      part(box(0.12, 0.2, 0.03), amber, side * 1.24, 0.86, -3.06);
-      part(box(0.1, 0.16, 0.03), head, side * 0.72, 0.86, -3.06);
-    }
-    part(box(2.44, 0.16, 0.1), alu, 0, 0.5, -2.98);
-    for (const side of [-1, 1]) part(box(0.08, 0.4, 0.08), black, side * 0.9, 0.62, -2.94);
-    part(box(2.2, 0.12, 0.06), black, 0, 0.3, -2.92);
-
-    const plateTex = canvasTexture(128, 32, ctx => {
-      ctx.fillStyle = '#f4f1e8';
-      ctx.fillRect(0, 0, 128, 32);
-      ctx.strokeStyle = '#1a1d24';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(2, 2, 124, 28);
-      ctx.fillStyle = '#1a1d24';
-      ctx.font = '900 22px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('1', 64, 17);
-    });
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.14), new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.5 }));
-    plate.position.set(0, 0.86, -3.07);
-    plate.rotation.y = Math.PI;
-    group.add(plate);
-    this.plateTex = plateTex;
-
-    const flapTex = canvasTexture(128, 128, ctx => {
-      ctx.fillStyle = '#101216';
-      ctx.fillRect(0, 0, 128, 128);
-      ctx.fillStyle = '#f4f1e8';
-      ctx.fillRect(0, 6, 128, 6);
-      ctx.font = '900 26px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('SCANIA', 64, 78);
-    });
-    for (const side of [-1, 1]) {
-      const flap = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.52), new THREE.MeshStandardMaterial({ map: flapTex, roughness: 0.9, side: THREE.DoubleSide }));
-      flap.position.set(side * 1.08, 0.42, -2.42);
-      flap.rotation.y = Math.PI;
-      flap.rotation.x = 0.08;
-      group.add(flap);
-    }
-
-    const badge = (text: string) => canvasTexture(256, 64, ctx => {
-      ctx.clearRect(0, 0, 256, 64);
-      const g = ctx.createLinearGradient(0, 8, 0, 56);
-      g.addColorStop(0, '#f2f5f8');
-      g.addColorStop(0.5, '#aeb6bf');
-      g.addColorStop(1, '#e8ecf0');
-      ctx.fillStyle = g;
-      ctx.font = '900 44px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 128, 34);
-    });
-    const badgeMat = (tex: THREE.Texture) => new THREE.MeshStandardMaterial({ map: tex, transparent: true, metalness: 0.7, roughness: 0.35 });
-    const rearBadge = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.3), badgeMat(badge('SCANIA')));
-    rearBadge.position.set(0, 1.95, 0.56);
-    rearBadge.rotation.y = Math.PI;
-    group.add(rearBadge);
-    const frontBadge = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.24), badgeMat(badge('SCANIA')));
-    frontBadge.position.set(0, 2.06, 2.96);
-    group.add(frontBadge);
-    const modelTex = badge('S 500 V8');
-    for (const side of [-1, 1]) {
-      const model = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.26), badgeMat(modelTex));
-      model.position.set(side * 1.26, 1.55, 1.9);
-      model.rotation.y = side * Math.PI / 2;
-      group.add(model);
-    }
-
-    /* 顶部标记灯 / 气喇叭 / 天线 */
-    for (let i = -2; i <= 2; i++) part(box(0.1, 0.05, 0.07), marker, i * 0.42, 3.72, 2.5);
-    for (const side of [-1, 1]) {
-      part(box(0.09, 0.05, 0.07), tail, side * 0.9, 3.62, 0.52);
-      part(new THREE.CylinderGeometry(0.045, 0.06, 0.34, 8), chrome, side * 0.5, 3.78, 2.1, Math.PI / 2);
-    }
-    part(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5), black, 0.9, 3.9, 0.7);
-
-    /* 夜间的 headlights 光锥 */
-    const beams: THREE.SpotLight[] = [];
-    if (this.palette.night) {
-      for (const side of [-1, 1]) {
-        const spot = new THREE.SpotLight('#ffe9c0', 320, 70, 0.44, 0.6, 1.6);
-        spot.position.set(side * 0.95, 1.05, 2.9);
-        spot.target.position.set(side * 1.4, 0, 26);
-        group.add(spot, spot.target);
-        beams.push(spot);
-      }
-    }
-
-    group.traverse(obj => { if (obj instanceof THREE.Mesh) obj.castShadow = true; });
-    return { group, paint, trim, tail, amber, head, marker, spins, steers, beams };
-  }
-
   private plateTex: THREE.Texture | null = null;
 
   setPlayerNumber(n: number) {
@@ -973,11 +774,11 @@ export class RaceScene {
     const dt = Math.min(0.05, Math.max(0.001, frame.dt));
     const t = frame.time;
     const truckZ = (frame.cameraX + CAM_BACK) * ZU;
-    const truckX = (frame.laneY - 1) * LANE_M;
+    const truckX = (1 - frame.laneY) * LANE_M;
     this.truckX = truckX;
     this.truckZ = truckZ;
 
-    const targetVel = THREE.MathUtils.clamp((frame.laneY - this.prevLaneY) / dt * LANE_M, -9, 9);
+    const targetVel = THREE.MathUtils.clamp((this.prevLaneY - frame.laneY) / dt * LANE_M, -9, 9);
     this.prevLaneY = frame.laneY;
     this.latVel += (targetVel - this.latVel) * Math.min(1, dt * 7);
     const targetSpeed = frame.status === 'racing' ? this.track.speed * ZU : 0;
@@ -1014,6 +815,11 @@ export class RaceScene {
     this.camera.position.set(this.camX + shakeX, 4.2 + Math.sin(t * 1.7) * 0.05 + shakeY, truckZ - 11.5);
     this.camera.lookAt(truckX * 0.85 + 0.5 + shakeX * 0.5, -2.25, truckZ + 10);
 
+    if (frame.showcase) {
+      const angle=.60 + .24 * Math.sin(t*.28);
+      this.camera.position.set(truckX+Math.sin(angle)*10,3.25,truckZ+Math.cos(angle)*10);
+      this.camera.lookAt(truckX,1.72,truckZ+.25);
+    }
     const off = this.track.theme === 'sunset' ? [-20, 12, 18] : this.track.theme === 'night' ? [14, 22, -10] : [18, 26, 12];
     this.sun.position.set(truckX + off[0], off[1], truckZ + off[2]);
     this.sun.target.position.set(truckX, 0, truckZ + 4);
@@ -1075,7 +881,7 @@ export class RaceScene {
         }
       }
     });
-    this.envTex.dispose();
+    this.envTarget.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }

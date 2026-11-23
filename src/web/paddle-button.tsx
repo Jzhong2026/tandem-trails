@@ -19,21 +19,22 @@ export function PaddleButton({ seat, enabled, onPaddle }: PaddleProps) {
 interface HoldProps {
   enabled: boolean;
   keyCode: string;
+  alternateKey?: string;
   className: string;
   onHold: (pressed: boolean) => void;
   children: ReactNode;
   refresh?: boolean;
 }
 
-export function HoldButton({ enabled, keyCode, className, onHold, children, refresh = true }: HoldProps) {
+export function HoldButton({ enabled, keyCode, alternateKey, className, onHold, children, refresh = true }: HoldProps) {
   const [pressed, setPressed] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
-  const keys = useRef(false);
+  const keys = useRef(new Set<string>());
   const pointer = useRef<number | null>(null);
   const sent = useRef(false);
 
   function update() {
-    const active = keys.current || pointer.current !== null;
+    const active = keys.current.size > 0 || pointer.current !== null;
     if (active === sent.current) return;
     sent.current = active;
     setPressed(active);
@@ -46,24 +47,24 @@ export function HoldButton({ enabled, keyCode, className, onHold, children, refr
       return;
     }
     function keyDown(event: KeyboardEvent) {
-      if (event.code !== keyCode || event.altKey || event.ctrlKey || event.metaKey) return;
+      if ((event.code !== keyCode && event.code !== alternateKey) || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.target instanceof HTMLElement && event.target !== button.current) {
         if (event.target.closest('input, textarea, select, [contenteditable]')) return;
         if (keyCode === 'Space' && event.target.closest('button, a')) return;
       }
       event.preventDefault();
-      if (event.repeat && !keys.current) return;
-      keys.current = true;
+      if (event.repeat && !keys.current.has(event.code)) return;
+      keys.current.add(event.code);
       update();
     }
     function keyUp(event: KeyboardEvent) {
-      if (event.code !== keyCode || !keys.current) return;
+      if (!keys.current.has(event.code)) return;
       event.preventDefault();
-      keys.current = false;
+      keys.current.delete(event.code);
       update();
     }
     function release() {
-      keys.current = false;
+      keys.current.clear();
       pointer.current = null;
       update();
     }
@@ -87,7 +88,7 @@ export function HoldButton({ enabled, keyCode, className, onHold, children, refr
       document.removeEventListener('visibilitychange', onVisibility);
       release();
     };
-  }, [enabled, keyCode, onHold, refresh]);
+  }, [enabled, keyCode, alternateKey, onHold, refresh]);
 
   const releasePointer = (id: number) => {
     if (pointer.current !== id) return;

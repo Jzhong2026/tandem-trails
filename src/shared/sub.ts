@@ -39,6 +39,7 @@ export interface SubView {
   bubbles: [boolean, boolean];
   rescued: boolean;
   finished: boolean;
+  sonar: boolean;
   collisions: number;
   elapsedMs: number;
   recoveryMs: number;
@@ -48,7 +49,7 @@ export function createSub(level: SubLevel = 'sub'): SubView {
   return {
     level, ...SUB.start, checkpoint: { ...SUB.start },
     bubbles: [false, false], rescued: false, finished: false,
-    collisions: 0, elapsedMs: 0, recoveryMs: 0,
+    sonar: false, collisions: 0, elapsedMs: 0, recoveryMs: 0,
   };
 }
 
@@ -84,6 +85,7 @@ function near(run: SubView, target: { x: number; y: number }, radius: number) {
 export function stepSub(run: SubView, inputs: MovementInputs) {
   if (run.finished) return;
   run.elapsedMs += GAME_TICK_MS;
+  run.sonar = inputs.left.interact || inputs.right.interact;
   if (run.recoveryMs > 0) {
     run.recoveryMs = Math.max(0, run.recoveryMs - GAME_TICK_MS);
     return;

@@ -5,7 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { SubCanvas } from './sub-canvas.js';
 import { looksOf } from './buddy.js';
-import { StoryBubble } from './story-bubble.js';
+import { StoryBubble, ChapterIntro } from './story-bubble.js';
 import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
@@ -46,6 +46,7 @@ export function SubStage({ run, phase, seat, game }: {
       <span className="sub-count">气泡 {bubbles} / 2{run.rescued ? ' · 小海马已上艇' : ''}</span>
     </div>
     <div className="stage-scene">
+      <ChapterIntro level={run.level}/>
       <SubCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="小海马到珊瑚站了！"
@@ -55,6 +56,6 @@ export function SubStage({ run, phase, seat, game }: {
       </FinishOverlay>}
     </div>
     {phase !== 'finished' && <MovementDeck enabled={!disabled && phase === 'playing'}
-      onInput={game.movementInput} moveLabels={moveLabels} />}
+      onInput={game.movementInput} moveLabels={moveLabels} vertical={seat === 'left'} actionLabel="按住声呐" keyLabel="声呐" />}
   </section>;
 }

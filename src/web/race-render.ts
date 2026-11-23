@@ -1,3 +1,4 @@
+import { TRUCKS } from '../shared/trucks.js';
 import { generateObstacles, LANE_COUNT } from '../shared/race.js';
 import type { Obstacle, PlayerStatus } from '../shared/race.js';
 import type { RaceTrackDef, RaceTheme } from '../shared/race-tracks.js';
@@ -270,6 +271,7 @@ export class RaceParticles {
 }
 
 export interface RaceFrame {
+  truck?: import('../shared/trucks.js').TruckId;
   track: RaceTrackDef;
   obstacles: Obstacle[];
   scenery: SceneryItem[];
@@ -877,7 +879,7 @@ function paintTruck(ctx: CanvasRenderingContext2D, cam: Camera, frame: RaceFrame
   roof.addColorStop(0, gone ? '#5c626b' : '#ffffff55');
   roof.addColorStop(1, gone ? '#4a505a' : dark);
   ctx.fillStyle = roof;
-  roundRect(ctx, -42, -192, 84, 38, 12); ctx.fill();
+  roundRect(ctx, -42, frame.truck === 'man' ? -183 : -192, 84, frame.truck === 'man' ? 29 : 38, frame.truck === 'volvo' ? 16 : 8); ctx.fill();
   ctx.fillStyle = gone ? '#565c65' : color;
   roundRect(ctx, -38, -158, 76, 8, 3); ctx.fill();
 
@@ -901,7 +903,7 @@ function paintTruck(ctx: CanvasRenderingContext2D, cam: Camera, frame: RaceFrame
   ctx.fillStyle = '#e8eef7';
   ctx.font = '900 10px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('SCANIA', 0, -99);
+  ctx.fillText(TRUCKS[frame.truck ?? 'scania'].brand, 0, -99);
   ctx.fillStyle = gone ? '#6b7280' : '#ffd23f';
   ctx.beginPath();
   ctx.arc(-38, -103, 6, 0, Math.PI * 2);

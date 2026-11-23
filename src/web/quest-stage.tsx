@@ -321,6 +321,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, lo
     </div>
 
     <div className="quest-scene">
+      <div key={level.id} className="quest-opening-shot" aria-hidden="true"><strong>{level.name}</strong></div>
       <canvas className="quest-canvas" ref={canvasRef} aria-label={`${level.name} 游戏画面`} role="img" />
       {phase === 'paused' && <div className="quest-overlay">
         <h2>暂停一下</h2>

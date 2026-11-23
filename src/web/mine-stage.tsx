@@ -5,7 +5,7 @@ import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { MineCanvas } from './mine-canvas.js';
 import { looksOf } from './buddy.js';
-import { StoryBubble } from './story-bubble.js';
+import { StoryBubble, ChapterIntro } from './story-bubble.js';
 import { storyFor } from '../shared/story.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
@@ -91,6 +91,7 @@ export function MineStage({ run, phase, seat, game }: {
       <span className="mine-count">萤火虫 {fireflies} / 2</span>
     </div>
     <div className="stage-scene">
+      <ChapterIntro level={run.level}/>
       <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
       {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} story={storyFor(run.level)} title="一起走出矿洞了！"

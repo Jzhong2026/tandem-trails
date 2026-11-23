@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { drawLandscape, drawModel, models } from './diorama.js';
 import { createMine, minerY, MINE, MINE2 } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
@@ -34,6 +35,7 @@ function caveBackdrop(ctx: Context, width: number, height: number, lowerY: numbe
   cave.addColorStop(1, '#251b36');
   ctx.fillStyle = cave;
   ctx.fillRect(0, 0, width, height);
+  drawLandscape(ctx,models.cavern,width,lowerY-80,0,1.8);
   for (let i = 0; i < 6; i++) {
     const x = i * 177 + 42;
     const shaft = ctx.createLinearGradient(x, 0, x + 78, 294);
@@ -52,6 +54,7 @@ function caveBackdrop(ctx: Context, width: number, height: number, lowerY: numbe
     const y = cluster % 2 ? lowerY + 36 : 373;
     const violet = cluster % 3 === 0;
     glow(ctx, x, y - 14, 43, violet ? '#9b71ef57' : '#45e8d85a');
+    drawModel(ctx,models.crystal,x-12,y-26,1.45,cluster*.8);
     for (let shard = -1; shard <= 1; shard++) {
       const base = x + shard * 11;
       const tip = base + shard * 13;
@@ -86,6 +89,11 @@ function paintSwitch(ctx: Context, x: number, y: number, color: string, active: 
   block(ctx, x - 12, y - 7, 24, 7, '#645368');
   block(ctx, x - 3, y - 25, 6, 20, '#a296a4');
   block(ctx, x - 10, y - 29, 20, 9, color, 4);
+  ctx.save();
+  ctx.strokeStyle=active ? '#e7ffc8' : color; ctx.lineWidth=2;
+  ctx.setLineDash(active ? [] : [3,4]);
+  ctx.beginPath();ctx.ellipse(x,y+2,MINE.interactRange,6,0,0,2*Math.PI);ctx.stroke();
+  ctx.restore();
 }
 
 function cable(ctx: Context, switchX: number, targetX: number, y: number, targetY: number,

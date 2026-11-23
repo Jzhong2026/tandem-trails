@@ -1,3 +1,8 @@
+import { studyShelf } from './curriculum.js';
+import { validCourse, SUBJECT_NAMES } from '../shared/study.js';
+import type { RaceSubject } from '../shared/race-questions.js';
+import { isLearningMode } from '../shared/learning.js';
+import type { MatchMode } from '../shared/learning.js';
 import { randomInt } from 'node:crypto';
 import { createServer } from 'node:http';
 import express from 'express';
@@ -14,7 +19,7 @@ import { RaceRoom, RACE_IDLE_MS } from './race-room.js';
 import { RACE_STEP } from '../shared/race.js';
 import { RACE_SEATS } from '../shared/race-protocol.js';
 import type {
-  RaceClientEvents, RaceConfig, RaceProfile, RaceRespond, RaceRoomView, RaceSeat, RaceServerEvents,
+  RaceAdmission, RaceClientEvents, RaceConfig, RaceProfile, RaceRespond, RaceRoomView, RaceSeat, RaceServerEvents,
 } from '../shared/race-protocol.js';
 
 interface Membership {
@@ -47,6 +52,12 @@ export function createGameServer({
   const app = express();
   app.disable('x-powered-by');
   app.get('/health', (_request, response) => response.json({ status: 'ok' }));
+  app.get('/api/study/:grade/:term/:subject',(request,response)=>{
+    const course={grade:Number(request.params.grade),term:Number(request.params.term)};
+    const subject=request.params.subject;
+    if (!validCourse(course) || !Object.hasOwn(SUBJECT_NAMES,subject)) {response.sendStatus(400);return;}
+    response.json(studyShelf(course,subject as RaceSubject));
+  });
   if (webDirectory) app.use(express.static(webDirectory));
   const http = createServer(app);
   const io = new Server<ClientEvents & RaceClientEvents, ServerEvents & RaceServerEvents, Record<never, never>, ConnectionData>(http, {
@@ -173,9 +184,10 @@ export function createGameServer({
       if (room.expired(now)) {
         closeRaceRoom(room, 'expired');
       } else if (room.phase === 'playing') {
-        room.tick(now, raceSteps);
+        const retirement = room.tick(now, raceSteps);
         if (room.phase === 'playing') {
-          if (tickNumber % 2 === 0) broadcastRace(room, now, true);
+          if (retirement) broadcastRace(room, now);
+          else if (room.mode === 'race' && tickNumber % 2 === 0) broadcastRace(room, now, true);
         } else {
           broadcastRace(room, now);
         }
@@ -346,7 +358,7 @@ export function createGameServer({
       broadcastRace(room, now);
     }
 
-    socket.on('race:create', respond => {
+    function createMatch(mode: MatchMode, respond: RaceRespond<RaceAdmission>) {
       if (typeof respond !== 'function') return;
       const now = performance.now();
       const membership = raceMemberOf(socket, now);
@@ -357,12 +369,22 @@ export function createGameServer({
         code = Array.from({ length: ROOM_CODE_LENGTH },
           () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)]).join('');
       } while (raceRooms.has(code) || rooms.has(code));
-      const room = new RaceRoom(code, now, idleMs, reservationMs);
+      const room = new RaceRoom(code, now, idleMs, reservationMs, mode);
       raceRooms.set(code, room);
       const seat = room.firstFreeSeat()!;
       room.admit(seat, socket.id, now);
       bindRace(socket, room, seat);
       respond({ ok: true, value: room.admission(seat, now) });
+    }
+    socket.on('race:create', respond => createMatch('race', respond));
+    socket.on('learning:create', (mode, respond) => {
+      if (isLearningMode(mode)) createMatch(mode, respond);
+      else if (typeof respond === 'function') respond({ ok: false, error: 'bad-request' });
+    });
+    socket.on('learning:act', action => {
+      const now = performance.now();
+      const member = raceMemberOf(socket, now);
+      if (member?.room.learningAction(member.seat, action, now)) broadcastRace(member.room, now);
     });
 
     socket.on('race:join', (input, respond) => {

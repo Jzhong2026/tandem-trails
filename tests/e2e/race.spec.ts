@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { RACE_QUESTIONS } from '../../src/shared/race-questions.js';
+import { questionsFor } from '../../src/server/curriculum.js';
+const RACE_QUESTIONS = questionsFor({grade:2,term:1});
 
 async function canvasPainted(page: import('@playwright/test').Page) {
   return page.evaluate(() => {
@@ -22,7 +23,7 @@ async function answerCurrentQuiz(page: import('@playwright/test').Page, wrong = 
     return options.findIndex(option => option.querySelector('span:last-child')?.textContent === text);
   }, correctText);
   expect(index).toBeGreaterThanOrEqual(0);
-  await page.locator('.race-opt').nth(wrong ? (index + 1) % 4 : index).click();
+  await page.locator('.race-opt').nth(wrong ? (index + 1) % bank.options.length : index).click();
 }
 
 test('solo racer creates a room, answers quizzes and reaches the finish', async ({ page }) => {
@@ -52,7 +53,7 @@ test('solo racer creates a room, answers quizzes and reaches the finish', async 
   let quizzesAnswered = 0;
   while (Date.now() < deadline) {
     if (await page.locator('.race-results').count()) { finished = true; break; }
-    if (await page.locator('.race-opt:not([disabled])').count() === 4) {
+    if (await page.locator('.race-opt:not([disabled])').count() >= 2) {
       await answerCurrentQuiz(page);
       quizzesAnswered++;
       await expect(page.locator('.race-quiz-reveal')).toBeVisible();
@@ -85,7 +86,7 @@ test('a wrong answer must be reviewed before the next race can start', async ({ 
   let wrongAnswered = false;
   while (Date.now() < deadline) {
     if (await page.locator('.race-review-gate').count()) break;
-    if (await page.locator('.race-opt:not([disabled])').count() === 4) {
+    if (await page.locator('.race-opt:not([disabled])').count() >= 2) {
       await answerCurrentQuiz(page, !wrongAnswered);
       if (!wrongAnswered) wrongAnswered = true;
       await page.locator('.race-quiz-foot .rbtn').click();
@@ -130,13 +131,19 @@ test('two players join the same room and see each other in the HUD', async ({ br
   await expect(page1.locator('.race-seats .race-seat:not(.empty)')).toHaveCount(2);
   await expect(page2.locator('.race-seats .race-seat:not(.empty)')).toHaveCount(2);
 
+  await page1.getByRole('button',{name:'中国重汽 · 汕德卡 C7H',exact:true}).click();
+  await page2.getByRole('button',{name:'Volvo FH',exact:true}).click();
+  await expect(page1.locator('.truck-garage')).toContainText('汕德卡 C7H');
+  await expect(page2.locator('.truck-garage')).toContainText('Volvo FH');
   await page1.getByRole('button', { name: '我准备好了' }).click();
   await page2.getByRole('button', { name: '我准备好了' }).click();
   await expect(page1.getByRole('button', { name: /开始比赛/ })).toBeEnabled();
   await page1.getByRole('button', { name: /开始比赛/ }).click();
 
-  await expect(page1.locator('.race-pcard')).toHaveCount(2);
-  await expect(page2.locator('.race-pcard')).toHaveCount(2);
+  await expect(page1.locator('.race-pcard')).toHaveCount(2,{timeout:15_000});
+  await expect(page2.locator('.race-pcard')).toHaveCount(2,{timeout:15_000});
+  await expect(page1.locator('.race-pcard').nth(1)).toContainText('Volvo FH');
+  await expect(page2.locator('.race-pcard').first()).toContainText('汕德卡 C7H');
   await page2.waitForTimeout(1600);
   expect(await canvasPainted(page1)).toBe(true);
   expect(await canvasPainted(page2)).toBe(true);

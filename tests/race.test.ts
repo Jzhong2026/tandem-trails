@@ -293,3 +293,16 @@ test('a full solo loop: every station then finish, fuel economy holds', () => {
   assert.equal(run.players[0].correctTotal, stations * QUESTIONS_PER_STATION);
   assert.ok(run.players[0].fuel >= 1);
 });
+test('a number gate rewards a correct lane once and respects the fuel cap', () => {
+  for (const [fuel,correct,expected] of [[5,true,6],[10,true,10],[5,false,5]] as const) {
+    const run=createRace({names:['试车'],seed:12,startFuel:fuel,course:{grade:2,term:2}});
+    skipCountdown(run);
+    const gate=run.gates[0],player=run.players[0];
+    player.x=gate.x-.1;
+    player.lane=correct ? gate.answerLane : (gate.answerLane+1)%3;
+    player.laneY=player.lane;
+    stepFor(run,.1);
+    assert.equal(player.lastGateCorrect,correct);
+    assert.equal(player.fuel,expected);
+  }
+});

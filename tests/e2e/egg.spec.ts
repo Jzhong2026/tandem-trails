@@ -61,8 +61,8 @@ test('desktop keyboard and phone multitouch trade the lift and deliver the egg a
         type: 'touchStart',
         touchPoints: [{ x: lift.x + lift.width / 2, y: lift.y + lift.height / 2 }],
       });
-      await expect(guest.getByText('你这端较高，松开抬高按钮')).toBeVisible();
-      await expect(host.getByText('等队友松开较高的一端')).toBeVisible();
+      await expect(guest.getByText('两人扶稳了，等蛋回到中间再走')).toBeVisible();
+      await expect(host.getByText('两人扶稳了，等蛋回到中间再走')).toBeVisible();
     } finally {
       await host.keyboard.up('e');
       await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });

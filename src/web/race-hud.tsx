@@ -1,3 +1,4 @@
+import { TRUCKS } from '../shared/trucks.js';
 import { FUEL_MAX } from '../shared/race.js';
 import type { PlayerStatus } from '../shared/race.js';
 import type { RacePlayerView } from '../shared/race-protocol.js';
@@ -51,6 +52,7 @@ export function PlayerCard({ player, own, stations, length }: {
       <span className="race-fuelnum" style={{ '--fc': fuelColor(player.fuel) } as React.CSSProperties}>{player.fuel}/{FUEL_MAX}</span>
     </div>
     <div className="race-pmeta">
+      <span className="race-pstat">{TRUCKS[player.truck].name}</span>
       <span className="race-pstat">答对 {player.correctTotal}</span>
       <span className="race-pstat">碰撞 {player.hits}</span>
       <span className="race-pstat">服务区 {player.stationsCleared}/{stations.length}</span>

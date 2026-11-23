@@ -311,6 +311,15 @@
 .race-home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .race-home-facts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 .race-home-preview { border: 2px solid var(--r-line); border-radius: 20px; overflow: hidden; box-shadow: 0 24px 54px #05070caa; background: #0d0f15; }
+ .lesson-reader { padding: .5rem 0; }
+.lesson-reader summary { margin-bottom: .7rem; }
+.lesson-reader label, .lesson-reader small { display:block; margin-bottom: .6rem; }
+.lesson-reader select { max-width: 100%; background: #202b39; color: #fff; padding:.4rem; }
+.lesson-reader section, .lesson-reader fieldset { padding: .7rem; margin: .55rem 0; border: 1px solid #526174; border-radius: .65rem; }
+.lesson-reader section p { line-height: 1.65; margin: .35rem 0; }
+.lesson-reader section span { display:inline-block; padding: .15rem .45rem; margin-right:.3rem; background: #263d46; border-radius:.35rem; }
+.race-preview-cover span { padding:.55rem .95rem; border-radius:2rem; background:#17232be0; color:white; font-weight:bold; }
+.race-preview-cover { display:grid; place-items:end start; padding:1rem; width:100%; border:0; cursor:pointer; aspect-ratio: 4 / 3; background: center / cover url(/art/starting-grid.webp); }
 .race-home-preview canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
 .race-home-preview figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; background: #1e222c; font-size: .82rem; color: var(--r-dim); }
 .race-home-preview figcaption strong { color: var(--r-ink); font-size: .95rem; }
@@ -352,3 +361,50 @@
   .race-ptag.quiz, .race-count { animation: none; }
   .rbtn, .race-opt, .race-track { transition: none; }
 }
+.number-gate { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: grid; gap: 4px; justify-items: center; pointer-events: none; min-width: 180px; padding: 9px 16px; border: 1px solid #86f6d1; border-radius: 16px; color: #fff9dc; background: #103a40f5; box-shadow: 0 6px 22px #092f3a55; }
+.number-gate strong { font: 800 1.5rem system-ui; }
+.number-gate div { display: flex; gap: 8px; }
+.number-gate span { padding: 2px 12px; border: 1px solid #819b95; border-radius: 8px; }
+.number-gate .selected { background: #a9ffe1; color: #083f39; border-color: #fff; }
+.race-quiz, .race-overlay { overflow-y: auto; align-content: safe center; }
+.race-quiz { align-items: safe center; }
+.race-play:has(.race-pads) .race-hint { display: none; }
+.race-pads { padding-top: 8px; }
+@media (max-width: 760px) {
+  .race-hud { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .race-pcard:only-child { grid-column: 1 / -1; }
+  .race-pcard:not(.own) .race-pmeta { display: none; }
+  .race-canvas { max-height: 56svh; }
+  .race-quiz-options { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .race-opt { padding: 8px; gap: 5px; }
+}
+
+.truck-garage { margin:14px 0 8px; border-radius:14px; overflow:hidden; background:radial-gradient(ellipse at 50% 90%,#546675,#263944 55%,#14252e); }
+.truck-garage canvas { display:block; width:100%; height:clamp(180px,25vh,274px); cursor:grab; touch-action:pan-y; }
+.truck-garage canvas[hidden] { display:none; }
+.truck-garage figcaption,.truck-picker { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.truck-garage figcaption { padding:6px 12px; justify-content:space-between; color:white; }
+.truck-garage button { font-size:1.15rem; background:transparent; border:1px solid #91a5aa; border-radius:8px; min-width:42px; min-height:36px; color:white; cursor:pointer; }
+.truck-picker button[aria-pressed=true] { color:#ffda78; border-color:#ffca58; }
+
+.study-picker { margin-bottom:20px; border-bottom:1px solid var(--r-line); padding-bottom:14px; }
+.study-picker details { margin-top:10px; } .study-picker summary { cursor:pointer; color:#b9e5ff; }
+.study-picker p,.study-list { font-size:.86rem; line-height:1.6; }
+.study-list { max-height:190px; overflow:auto; padding:0 0 0 20px; }
+.study-list a { color:#b8eafa; } .study-inputs { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.study-inputs select { background:#202936; color:#fff; padding:8px; border:1px solid #8592a0; border-radius:7px; font:inherit; }
+.study-inputs [aria-pressed=true] { color:var(--r-amber); border-color:var(--r-amber); }
+.grid-intro { isolation:isolate; overflow:hidden; align-content:center; }
+.grid-intro::before { content:''; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,#102123aa,transparent 90%),url('/art/starting-grid.webp') center/cover; animation:rally-pan 4s ease-out both; }
+.grid-intro p { color:white; background:#132c33d9; padding:5px 10px; border-radius:8px; }
+@keyframes rally-pan { from {transform:scale(1.075)} to {transform:scale(1)} }
+.pit-banner { height:clamp(38px,7vh,82px); border-radius:10px; margin:0 0 12px; background:linear-gradient(0deg,#18202a44,transparent),url('/art/starting-grid.webp') 74% 38%/cover; }
+.race-quiz-reveal { position:relative; }
+.fuel-spark { position:absolute; pointer-events:none; left:12px; bottom:0; }
+.fuel-spark i { position:absolute; width:9px; height:13px; border-radius:70% 30% 65% 35%; background:#98ffb9; box-shadow:0 0 8px #bfff59; animation:fuel-flight .65s ease-in both; }
+.fuel-spark i:nth-child(2){left:20px; animation-delay:.09s}.fuel-spark i:nth-child(3){left:40px;animation-delay:.15s}
+@keyframes fuel-flight { from{opacity:0;transform:translate(70px,-24px)} 35%{opacity:1} to{opacity:0;transform:translate(0,38px) scale(.5)} }
+.race-quiz-fuel.refilled b { animation:fuel-light .9s ease-out; }
+@keyframes fuel-light { 50%{text-shadow:0 0 10px #aaff8a;color:#fff;} }
+@media(max-height:620px){.pit-banner{display:none}}
+@media(prefers-reduced-motion:reduce){.grid-intro::before,.fuel-spark i,.race-quiz-fuel.refilled b{animation:none}.fuel-spark{display:none}}

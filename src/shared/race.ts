@@ -1,7 +1,8 @@
 import { QUESTIONS_PER_STATION, RACE_QUESTIONS } from './race-questions.js';
 import type { RaceQuestion, RaceSubject } from './race-questions.js';
-import { trackById } from './race-tracks.js';
-import type { RaceTrackDef } from './race-tracks.js';
+import type { StudyCourse } from './study.js';
+import { numberGates, trackById } from './race-tracks.js';
+import type { NumberGate, RaceTrackDef } from './race-tracks.js';
 
 export const RACE_STEP = 1 / 60;
 export const FUEL_MAX = 10;
@@ -37,6 +38,7 @@ export interface QuizState {
   phase: 'question' | 'reveal';
   picked: number | null;
   wasCorrect: boolean | null;
+  gainedFuel: boolean;
 }
 
 export interface RaceAnswerRecord {
@@ -44,7 +46,7 @@ export interface RaceAnswerRecord {
   subject: RaceSubject;
   topic: string;
   prompt: string;
-  options: [string, string, string, string];
+  options: string[];
   answer: number;
   picked: number;
   correct: boolean;
@@ -64,6 +66,7 @@ export interface RacePlayer {
   invulnMs: number;
   slowMs: number;
   hits: number;
+  lastGateCorrect: boolean | null;
   correctTotal: number;
   wrongTotal: number;
   stationsCleared: number;
@@ -87,7 +90,9 @@ export interface RaceEvent {
 
 export interface RaceRun {
   track: RaceTrackDef;
+  bank: RaceQuestion[];
   obstacles: Obstacle[];
+  gates: NumberGate[];
   players: RacePlayer[];
   status: RunStatus;
   countdownMs: number;
@@ -100,6 +105,8 @@ export interface RaceRun {
 }
 
 export interface RaceOptions {
+  bank?: RaceQuestion[];
+  course?: StudyCourse;
   names: string[];
   colors?: number[];
   trackId?: string;
@@ -127,22 +134,19 @@ function shuffle<T>(items: T[], rand: () => number): T[] {
   return copy;
 }
 
-function drawQuestions(rand: () => number, subjectMix: boolean): RaceQuestion[] {
-  const pool = shuffle(RACE_QUESTIONS, rand);
+function drawQuestions(rand: () => number, answers: RaceAnswerRecord[], bank: RaceQuestion[]): RaceQuestion[] {
+  const seen = new Set(answers.map(answer => answer.id));
+  const pool = shuffle(bank.filter(question => !seen.has(question.id)), rand);
   const picked: RaceQuestion[] = [];
-  if (subjectMix) {
-    const chinese = pool.filter(q => q.subject === 'chinese');
-    const math = pool.filter(q => q.subject === 'math');
-    for (let i = 0; i < QUESTIONS_PER_STATION; i++) {
-      const source = i % 2 === 0 ? chinese : math;
-      picked.push(source[Math.floor(i / 2)] ?? pool[i]);
-    }
-  } else {
-    picked.push(...pool.slice(0, QUESTIONS_PER_STATION));
+  const subjects = [...new Set(bank.map(q=>q.subject))];
+  for (let i = 0; i < QUESTIONS_PER_STATION; i++) {
+    const subject = subjects[(answers.length+i)%subjects.length];
+    const available = pool.filter(q => q.subject === subject && !picked.includes(q));
+    picked.push(available.find(q => picked.every(previous => previous.topic !== q.topic)) ?? available[0]);
   }
   return picked.map(question => {
-    const order = shuffle([0, 1, 2, 3], rand);
-    const options = order.map(i => question.options[i]) as [string, string, string, string];
+    const order = shuffle(question.options.map((_,i)=>i), rand);
+    const options = order.map(i => question.options[i]);
     return { ...question, options, answer: order.indexOf(question.answer) };
   });
 }
@@ -165,7 +169,10 @@ export function generateObstacles(track: RaceTrackDef, seed: number): Obstacle[]
     }
     x += track.gap[0] + rand() * (track.gap[1] - track.gap[0]);
   }
-  return obstacles;
+  const gates = numberGates(track);
+  return obstacles.filter(obstacle => gates.every(gate =>
+    obstacle.x + obstacle.w < gate.x - track.speed * 5.5 || obstacle.x > gate.x + CAR_LENGTH + track.speed,
+  ));
 }
 
 export function createRace(options: RaceOptions): RaceRun {
@@ -185,6 +192,7 @@ export function createRace(options: RaceOptions): RaceRun {
     invulnMs: 0,
     slowMs: 0,
     hits: 0,
+    lastGateCorrect: null,
     correctTotal: 0,
     wrongTotal: 0,
     stationsCleared: 0,
@@ -197,6 +205,8 @@ export function createRace(options: RaceOptions): RaceRun {
   }));
   return {
     track,
+    bank: options.bank ?? RACE_QUESTIONS,
+    gates: numberGates(track,options.course),
     obstacles: generateObstacles(track, track.seed),
     players,
     status: 'countdown',
@@ -239,12 +249,13 @@ function enterStation(run: RaceRun, index: number, station: number) {
   player.x = run.track.stations[station];
   player.quiz = {
     station,
-    questions: drawQuestions(mulberry32(run.seed + index * 977 + station * 131), true),
+    questions: drawQuestions(mulberry32(run.seed + index * 977 + station * 131), player.answers,run.bank),
     index: 0,
     correct: 0,
     phase: 'question',
     picked: null,
     wasCorrect: null,
+    gainedFuel: false,
   };
   if (run.pauseAllOnQuiz) run.quizOwner = index;
   run.events.push({ kind: 'station', player: index, value: station });
@@ -293,6 +304,12 @@ export function stepRace(run: RaceRun, inputs: RaceInput[]) {
     player.x += speed * RACE_STEP;
     player.laneY += (player.lane - player.laneY) * Math.min(1, RACE_STEP * 11);
 
+    const gate = run.gates[player.stationsCleared];
+    if (gate && previousX < gate.x && player.x >= gate.x) {
+      player.lastGateCorrect = player.lane === gate.answerLane;
+      if (player.lastGateCorrect) player.fuel = Math.min(FUEL_MAX, player.fuel + 1);
+    }
+
     for (let o = 0; o < run.obstacles.length; o++) {
       const obstacle = run.obstacles[o];
       if (obstacle.x > player.x + CAR_LENGTH || obstacle.x + obstacle.w < player.x) continue;
@@ -337,9 +354,11 @@ export function stepRace(run: RaceRun, inputs: RaceInput[]) {
 export function answerQuiz(run: RaceRun, index: number, option: number): boolean {
   const player = run.players[index];
   const quiz = player.quiz;
-  if (!quiz || quiz.phase !== 'question' || option < 0 || option > 3) return false;
+  if (!quiz || quiz.phase !== 'question' || !Number.isInteger(option)) return false;
   const question = quiz.questions[quiz.index];
+  if (option < 0 || option >= question.options.length) return false;
   const correct = option === question.answer;
+  quiz.gainedFuel = correct && player.fuel < FUEL_MAX;
   quiz.picked = option;
   quiz.wasCorrect = correct;
   quiz.phase = 'reveal';
@@ -348,7 +367,7 @@ export function answerQuiz(run: RaceRun, index: number, option: number): boolean
     subject: question.subject,
     topic: question.topic,
     prompt: question.prompt,
-    options: [...question.options] as [string, string, string, string],
+    options: [...question.options],
     answer: question.answer,
     picked: option,
     correct,

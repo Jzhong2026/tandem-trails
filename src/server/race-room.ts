@@ -1,3 +1,9 @@
+import { isTruckId } from '../shared/trucks.js';
+import type { TruckId } from '../shared/trucks.js';
+import { DEFAULT_COURSE, validCourse } from '../shared/study.js';
+import { questionsFor } from './curriculum.js';
+import { LearningMatch } from './learning-match.js';
+import type { MatchMode, LearningAction } from '../shared/learning.js';
 import { randomBytes } from 'node:crypto';
 import {
   advanceQuiz, answerQuiz, changeLane, createRace, eliminatePlayer, FUEL_MAX, IDLE_INPUT,
@@ -18,6 +24,7 @@ export const RACE_IDLE_MS = 30 * 60_000;
 const STEPS_PER_TICK = 2;
 
 interface RaceMember {
+  truck: TruckId;
   token: string;
   socketId: string | null;
   disconnectedAt: number | null;
@@ -30,7 +37,9 @@ interface RaceMember {
 export class RaceRoom {
   readonly members: (RaceMember | null)[] = [null, null, null, null];
   private run: RaceRun | null = null;
+  private learning: LearningMatch | null = null;
   private seatOrder: RaceSeat[] = [];
+  private course = DEFAULT_COURSE;
   private trackId = 'campus';
   private startFuel = 6;
   private lobbyRevision = 0;
@@ -42,6 +51,7 @@ export class RaceRoom {
     now: number,
     private readonly idleMs: number = RACE_IDLE_MS,
     private readonly reservationMs: number = RESERVATION_MS,
+    readonly mode: MatchMode = 'race',
   ) {
     this.activeAt = now;
   }
@@ -64,7 +74,7 @@ export class RaceRoom {
     this.members[seat] = {
       token: randomBytes(24).toString('base64url'),
       socketId, disconnectedAt: null, ready: false,
-      name: `车手 ${seat + 1}`, color: seat, reviewDone: false,
+      truck: 'scania', name: `${this.mode === 'race' ? '车手' : '选手'} ${seat + 1}`, color: seat, reviewDone: false,
     };
     if (this.presentSeats().length === 1) this.host = seat;
     this.activeAt = now;
@@ -90,7 +100,7 @@ export class RaceRoom {
     if (!member) return;
     member.socketId = null;
     member.disconnectedAt = now;
-    if (!this.run) member.ready = false;
+    if (this.phase === 'lobby') member.ready = false;
     this.activeAt = now;
   }
 
@@ -103,8 +113,15 @@ export class RaceRoom {
   }
 
   setConfig(config: RaceConfig, now: number): boolean {
-    if (this.run) return false;
+    if (this.phase !== 'lobby') return false;
     let changed = false;
+    if (config.course !== undefined) {
+      if (!validCourse(config.course)) return false;
+      if (config.course.grade !== this.course.grade || config.course.term !== this.course.term) {
+        this.course = {grade:config.course.grade,term:config.course.term};
+        changed=true;
+      }
+    }
     if (typeof config.trackId === 'string' && trackById(config.trackId).id === config.trackId && config.trackId !== this.trackId) {
       this.trackId = config.trackId;
       changed = true;
@@ -121,6 +138,8 @@ export class RaceRoom {
   setProfile(seat: RaceSeat, profile: RaceProfile, now: number): boolean {
     const member = this.members[seat];
     if (!member) return false;
+    if (this.phase !== 'lobby') return false;
+    if (isTruckId(profile.truck)) member.truck = profile.truck;
     member.name = sanitizeRaceName(profile.name, member.name);
     const color = sanitizeRaceColor(profile.color, member.color);
     const taken = this.presentSeats().some(other => other !== seat && this.members[other]!.color === color);
@@ -130,7 +149,7 @@ export class RaceRoom {
   }
 
   ready(seat: RaceSeat, ready: boolean, lobbyRevision: number, now: number): boolean {
-    if (lobbyRevision !== this.lobbyRevision || this.run) return false;
+    if (lobbyRevision !== this.lobbyRevision || this.phase !== 'lobby') return false;
     const member = this.members[seat];
     if (!member) return false;
     member.ready = ready;
@@ -139,7 +158,7 @@ export class RaceRoom {
   }
 
   canStart(): boolean {
-    if (this.run) return false;
+    if (this.phase !== 'lobby') return false;
     const present = this.presentSeats();
     return present.length > 0 && present.every(seat => this.members[seat]!.ready);
   }
@@ -147,7 +166,14 @@ export class RaceRoom {
   start(now: number): boolean {
     if (!this.canStart()) return false;
     this.seatOrder = this.presentSeats();
+    const bank=questionsFor(this.course);
+    if (this.mode !== 'race') {
+      this.learning = new LearningMatch(this.mode, bank, this.seatOrder.map(seat => ({ seat, name: this.members[seat]!.name })));
+      this.activeAt = now;
+      return true;
+    }
     this.run = createRace({
+      bank, course:this.course,
       names: this.seatOrder.map(seat => this.members[seat]!.name),
       colors: this.seatOrder.map(seat => this.members[seat]!.color),
       trackId: this.trackId,
@@ -155,6 +181,12 @@ export class RaceRoom {
       pauseAllOnQuiz: false,
     });
     for (const seat of this.seatOrder) this.members[seat]!.reviewDone = false;
+    this.activeAt = now;
+    return true;
+  }
+
+  learningAction(seat: RaceSeat, action: LearningAction, now: number) {
+    if (!this.learning?.act(seat, action)) return false;
     this.activeAt = now;
     return true;
   }
@@ -187,6 +219,7 @@ export class RaceRoom {
   }
 
   canReplay(): boolean {
+    if (this.learning) return this.learning.finished;
     if (!this.run || this.run.status !== 'finished') return false;
     return this.presentSeats().every(other => {
       if (this.reviewList(other).length === 0) return true;
@@ -195,7 +228,7 @@ export class RaceRoom {
   }
 
   replay(now: number): boolean {
-    if (!this.run || this.run.status !== 'finished') return false;
+    if (!this.canReplay()) return false;
     this.resetLobby(now);
     return true;
   }
@@ -205,8 +238,9 @@ export class RaceRoom {
       const index = this.playerIndex(seat);
       if (index >= 0) eliminatePlayer(this.run, index);
     }
+    this.learning?.retire(seat);
     this.members[seat] = null;
-    if (!this.run) {
+    if (this.phase === 'lobby') {
       this.lobbyRevision++;
       const present = this.presentSeats();
       if (!present.includes(this.host)) this.host = present[0] ?? 0;
@@ -238,6 +272,14 @@ export class RaceRoom {
 
   tick(now: number, steps: number = STEPS_PER_TICK) {
     const run = this.run;
+    if (this.learning) {
+      let changed = false;
+      for (const seat of this.seatOrder) {
+        const away = this.members[seat]?.disconnectedAt;
+        if (away != null && now - away >= this.reservationMs) changed = this.learning.retire(seat) || changed;
+      }
+      return changed;
+    }
     if (!run || this.phase !== 'playing') return;
     for (const seat of this.seatOrder) {
       const member = this.members[seat];
@@ -253,6 +295,7 @@ export class RaceRoom {
   }
 
   get phase(): RacePhase {
+    if (this.learning) return this.learning.finished ? 'finished' : 'playing';
     if (!this.run) return 'lobby';
     if (this.run.status === 'finished') return 'finished';
     return 'playing';
@@ -263,7 +306,9 @@ export class RaceRoom {
   }
 
   private resetLobby(now: number) {
+    this.learning = null;
     this.run = null;
+    if (!this.members[this.host]) this.host = this.presentSeats()[0] ?? 0;
     this.seatOrder = [];
     this.lobbyRevision++;
     for (const seat of this.presentSeats()) {
@@ -283,6 +328,9 @@ export class RaceRoom {
       return this.playerView(other, member, player, now);
     });
     return {
+      course: this.course,
+      mode: this.mode,
+      learning: this.learning?.view(seat) ?? null,
       code: this.code,
       phase: this.phase,
       trackId: this.trackId,
@@ -302,12 +350,14 @@ export class RaceRoom {
   private playerView(seat: RaceSeat, member: RaceMember, player: RacePlayer | null, now: number): RacePlayerView {
     return {
       seat,
+      truck: member.truck,
       name: member.name,
       color: member.color,
       online: member.socketId !== null,
       ready: member.ready,
       x: player?.x ?? 0,
       lane: player?.lane ?? 1,
+      lastGateCorrect: player?.lastGateCorrect ?? null,
       fuel: player?.fuel ?? this.startFuel,
       status: player?.status ?? 'racing',
       hits: player?.hits ?? 0,
@@ -340,6 +390,7 @@ export class RaceRoom {
       options: [...question.options],
       picked: quiz.picked,
       wasCorrect: quiz.wasCorrect,
+      gainedFuel: quiz.gainedFuel,
       answer: quiz.phase === 'reveal' ? question.answer : null,
       explain: quiz.phase === 'reveal' ? question.explain : null,
       correct: quiz.correct,

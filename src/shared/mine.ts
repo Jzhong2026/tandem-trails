@@ -96,7 +96,8 @@ export function minerAtExit(run: MineView, seat: Seat) {
   return run.players[seat].x >= MINE.exit && (seat === 'right' || run.liftProgress === 1);
 }
 
-function walk(x: number, input: MovementInput, min: number, max: number) {
+function walk(x: number, input: MovementInput, min: number, max: number, switchX?: number) {
+  if (input.interact && switchX !== undefined && nearMineSwitch(x,switchX)) return x;
   const distance = movementDirection(input) * MINE.walkSpeed * GAME_TICK_MS / 1000;
   return Math.max(min, Math.min(max, x + distance));
 }
@@ -111,12 +112,12 @@ export function stepMine(run: MineView, inputs: MovementInputs) {
   if (run.liftProgress === 1) {
     lower.x = walk(lower.x, inputs.left, lift.x, MINE.end);
   } else if (run.liftProgress === 0) {
-    lower.x = walk(lower.x, inputs.left, 60, lift.x);
+    lower.x = walk(lower.x, inputs.left, 60, lift.x, run.bridgeCrossed ? undefined : bridge.switchX);
   }
   run.bridgeOpen = run.bridgeCrossed || (inputs.left.interact && nearMineSwitch(lower.x, bridge.switchX));
   if (run.bridgeOpen) {
     const end = run.liftProgress === 1 ? MINE.end : lift.x - 24;
-    upper.x = walk(upper.x, inputs.right, 60, end);
+    upper.x = walk(upper.x, inputs.right, 60, end, run.bridgeCrossed && run.liftProgress < 1 ? lift.switchX : undefined);
   } else if (upper.x <= bridge.start) {
     upper.x = walk(upper.x, inputs.right, 60, bridge.start);
   }
@@ -142,7 +143,8 @@ function stepDoubleBridge(run: MineView, inputs: MovementInputs) {
 
   run.bridgeOpen = run.bridgeCrossed || (inputs.left.interact && nearMineSwitch(lower.x, bridge1.switchX));
   if (run.bridgeOpen) {
-    upper.x = walk(upper.x, inputs.right, 60, end);
+    const limit = run.cartX >= cart.to ? end : Math.max(cart.from,run.cartX);
+    upper.x = walk(upper.x, inputs.right, 60, limit, run.bridgeCrossed && !run.bridge2Crossed ? bridge2.switchX : undefined);
   } else if (upper.x <= bridge1.start) {
     upper.x = walk(upper.x, inputs.right, 60, bridge1.start);
   }
@@ -150,9 +152,9 @@ function stepDoubleBridge(run: MineView, inputs: MovementInputs) {
 
   run.bridge2Open = run.bridge2Crossed || (inputs.right.interact && nearMineSwitch(upper.x, bridge2.switchX));
   if (run.bridge2Open) {
-    lower.x = walk(lower.x, inputs.left, 60, end);
+    lower.x = walk(lower.x, inputs.left, 60, end, run.cartX < cart.to ? cart.switchX : undefined);
   } else if (lower.x <= bridge2.start) {
-    lower.x = walk(lower.x, inputs.left, 60, bridge2.start);
+    lower.x = walk(lower.x, inputs.left, 60, bridge2.start, run.bridgeCrossed ? undefined : bridge1.switchX);
   }
   if (lower.x >= bridge2.end) run.bridge2Crossed = true;
 
@@ -167,8 +169,6 @@ function stepDoubleBridge(run: MineView, inputs: MovementInputs) {
   if (run.cartHeld) run.cartX = Math.min(cart.to, run.cartX + cart.speed * GAME_TICK_MS / 1000);
   if (aboard && run.cartX < cart.to) {
     upper.x = run.cartX;
-  } else if (run.bridgeOpen) {
-    upper.x = walk(upper.x, inputs.right, 60, run.cartX >= cart.to ? end : cart.from);
   }
 
   run.finished = minerAtExit(run, 'left') && minerAtExit(run, 'right') && lower.firefly && upper.firefly;

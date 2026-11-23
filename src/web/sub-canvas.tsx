@@ -2,6 +2,7 @@ import { createSub, SUB, tentacleOpen } from '../shared/sub.js';
 import type { SubView } from '../shared/sub.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
+import { drawLandscape, drawModel, models } from './diorama.js';
 import { CHAPTER_OUTFIT, paintBuddy, paletteOf } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
 import type { BuddyLooks } from '../shared/buddy.js';
@@ -32,6 +33,7 @@ function waterBackdrop(ctx: Context) {
   water.addColorStop(1, '#123a52');
   ctx.fillStyle = water;
   ctx.fillRect(0, surface, width, height - surface);
+  drawLandscape(ctx,models.coral,width,seabed-18,0,1.4);
   for (let i = 0; i < 5; i++) {
     const x = i * 210 + 52;
     const shaft = ctx.createLinearGradient(x, surface, x + 120, seabed);
@@ -144,7 +146,7 @@ function buoy(ctx: Context, x: number, y: number) {
   ctx.stroke();
   ctx.setLineDash([]);
   halo(ctx, x, y, 24, '#f5bd8038');
-  ellipse(ctx, x, y, 10, 10, '#f5bd80');
+  drawModel(ctx, models.beacon,x,y,1,.65);
   ellipse(ctx, x, y, 5.4, 5.4, '#1d5f78');
   ellipse(ctx, x - 3, y - 4, 2, 1.4, '#ffe1a1');
 }
@@ -248,13 +250,7 @@ function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number, look
   ctx.fillRect(-34, -2, 8, 4);
   ellipse(ctx, -36, 0, 3, 10 * Math.abs(Math.sin(seconds * 14)) + 2, '#e8b071');
   polygon(ctx, '#e09a5f', [[-24, -12], [-32, -21], [-19, -14]]);
-  const hull = ctx.createLinearGradient(0, -14, 0, 14);
-  hull.addColorStop(0, '#ffd9a0');
-  hull.addColorStop(1, '#e09a5f');
-  ctx.fillStyle = hull;
-  ctx.beginPath();
-  ctx.roundRect(-28, -14, 56, 28, 14);
-  ctx.fill();
+  drawModel(ctx,models.submarine,0,0,1,.14);
   ctx.fillStyle = '#b9743f66';
   ctx.beginPath();
   ctx.roundRect(-28, 4, 56, 6, 3);
@@ -347,6 +343,22 @@ function paintRun(ctx: Context, run: SubView, seat: Seat, looks: BuddyLooks) {
     }
   }
   ctx.restore();
+  if (run.sonar && !run.finished) {
+    const target = SUB.bubbles.find((_,i)=>!run.bubbles[i]) ?? (run.rescued ? SUB.dock : SUB.seahorse);
+    const angle = Math.atan2(target.y-run.y,target.x-run.x);
+    ctx.save();
+    ctx.strokeStyle='#a2fff0'; ctx.fillStyle='#caffed'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(run.x,run.y,35+(seconds*42)%62,0,Math.PI*2);ctx.stroke();
+    ctx.translate(run.x,run.y);ctx.rotate(angle);
+    polygon(ctx,'#f9e9a7',[[53,0],[41,-6],[44,0],[41,6]]);
+    ctx.restore();
+    const clock=run.elapsedMs%SUB.tentacle.periodMs;
+    const open=tentacleOpen(run.elapsedMs);
+    const wait=Math.ceil(((open ? SUB.tentacle.openMs : SUB.tentacle.periodMs)-clock)/100)/10;
+    ctx.save();ctx.fillStyle='#104157';ctx.fillRect(SUB.tentacle.x-44,55,88,22);
+    ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.fillStyle='#fff2ad';
+    ctx.fillText(`${open?'关闭':'开启'}前 ${wait.toFixed(1)} 秒`,SUB.tentacle.x,71);ctx.restore();
+  }
   submarine(ctx, run, seat, seconds, looks);
 }
 

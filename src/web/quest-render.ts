@@ -1,3 +1,4 @@
+import { drawLandscape, drawModel, models } from './diorama.js';
 import type { QuestEvent, QuestRun } from '../shared/quest.js';
 import { activePlayers } from '../shared/quest.js';
 import { ROWS, TILE, VIEW_HEIGHT, VIEW_WIDTH } from '../shared/quest-levels.js';
@@ -226,7 +227,12 @@ export function paintFrame(
   ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
   ctx.translate(shakeX, shakeY);
   paintSky(ctx, run.theme, seconds);
+  drawLandscape(ctx,models.summit,VIEW_WIDTH,117,cameraX,.9);
   paintParallax(ctx, run.theme, cameraX, seconds, run.cameraY);
+  for (let i=0;i<3;i++) {
+    const x=(i*275+620-cameraX*.16)%825;
+    drawModel(ctx,models.island,x< -70?x+825:x,86+i%2*31, .5+i*.13,.42+i);
+  }
 
   ctx.save();
   ctx.translate(-cameraX, -run.cameraY);

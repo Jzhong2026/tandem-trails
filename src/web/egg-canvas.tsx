@@ -1,3 +1,4 @@
+import { drawLandscape, drawModel, models } from './diorama.js';
 import { createEgg, EGG_LAYOUTS, eggGroundY, eggWindDir } from '../shared/egg.js';
 import type { EggLayout, EggView, EggWind } from '../shared/egg.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
@@ -62,6 +63,7 @@ function paintLayout(ctx: Context, level: EggLevel) {
     polygon(ctx, '#f4d6c5', [[x - 45, y + 41], [x, y], [x + 31, y + 33], [x + 8, y + 20],
       [x + 6, y + 30], [x - 7, y + 19], [x - 17, y + 29], [x - 18, y + 25]]);
   }
+  drawLandscape(ctx,models.summit,layout.width,174,0,1.7);
   for (let layer = 0; layer < 2; layer++) {
     for (let i = 0; i < 57; i++) {
       const x = i * 19 + layer * 8;
@@ -170,15 +172,7 @@ function paintRun(ctx: Context, run: EggView, seat: Seat, looks: BuddyLooks) {
   const slipping = Math.abs(run.roll) > .62;
   const balanced = (run.raised.left || run.raised.right) && Math.abs(run.tilt) < .15;
   halo(ctx, roll, -18, balanced ? 48 : 32, slipping ? '#ff834f9c' : '#ffe5a594');
-  const shell = ctx.createLinearGradient(roll - 10, -30, roll + 11, 0);
-  shell.addColorStop(0, '#ffffcc');
-  shell.addColorStop(.38, '#ffe09c');
-  shell.addColorStop(.70, '#e8a7a9');
-  shell.addColorStop(1, '#98749a');
-  ctx.fillStyle = shell;
-  ctx.beginPath();
-  ctx.ellipse(roll, -15, 13, 17, 0, 0, Math.PI * 2);
-  ctx.fill();
+  drawModel(ctx,models.egg,roll,-17,1.12,.55+run.roll*2);
   if (balanced) {
     for (let i = 0; i < 9; i++) {
       const phase = i * 2.4 + seconds;
@@ -187,9 +181,6 @@ function paintRun(ctx: Context, run: EggView, seat: Seat, looks: BuddyLooks) {
       ellipse(ctx, px, py, 1.1, 2.4, '#fff3bd');
     }
   }
-  ellipse(ctx, roll - 4, -21, 4, 6, '#fff0c0');
-  ellipse(ctx, roll + 5, -13, 3, 5, '#b193a7');
-  ellipse(ctx, roll - 5, -7, 3, 3, '#bb9ab2');
   ctx.restore();
 }
 

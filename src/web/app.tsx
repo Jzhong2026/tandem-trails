@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import {
   EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, EGG2_LEVEL_TITLE, EGG2_SUMMARY, GAME_LEVELS,
   isEggLevel, isMineLevel, isSubLevel, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE, MINE2_LEVEL_TITLE, MINE2_SUMMARY,
@@ -15,7 +15,7 @@ import type { Channel, Flag } from '../shared/river-levels.js';
 import type { RiverView } from '../shared/river.js';
 import { EggCanvas } from './egg-canvas.js';
 import { BuddySeats } from './buddy-picker.js';
-import { MissionCard, StoryBubble } from './story-bubble.js';
+import { MissionCard, StoryBubble, ChapterIntro } from './story-bubble.js';
 import { storyFor } from '../shared/story.js';
 import { looksOf } from './buddy.js';
 import { EggStage } from './egg-stage.js';
@@ -26,11 +26,14 @@ import { PaddleButton } from './paddle-button.js';
 import { PauseOverlay } from './pause-overlay.js';
 import { QuestGame } from './quest-game.js';
 import { QuestPreview } from './quest-preview.js';
-import { RaceGame, RaceHome } from './race-game.js';
+import type { LearningMode } from '../shared/learning.js';
+import { RaceHome } from './race-home.js';
 import { RiverCanvas } from './river-canvas.js';
 import { SubCanvas } from './sub-canvas.js';
 import { SubStage } from './sub-stage.js';
 import { useRoom } from './use-room.js';
+
+const RaceGame = lazy(() => import('./race-game.js').then(module => ({ default: module.RaceGame })));
 
 type Game = ReturnType<typeof useRoom>;
 const seatName = { left: '左桨', right: '右桨' } as const;
@@ -49,7 +52,7 @@ function courseInfo(level: GameLevel) {
 export function App() {
   const game = useRoom();
   const [quest, setQuest] = useState<'solo' | 'coop' | null>(null);
-  const [race, setRace] = useState<'create' | 'join' | null>(() =>
+  const [race, setRace] = useState<'create' | 'join' | LearningMode | null>(() =>
     new URLSearchParams(window.location.search).has('race') ? 'join' : null);
   const [code, setCode] = useState(() => normalizeRoomCode(
     new URLSearchParams(window.location.search).get('room') ?? '',
@@ -77,7 +80,7 @@ export function App() {
       {quest && !game.room
         ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
         : race && !game.room
-        ? <RaceGame initialAction={race} onExit={() => setRace(null)} />
+        ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame initialAction={race} onExit={() => setRace(null)} /></Suspense>
         : game.room && game.seat
         ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
@@ -227,6 +230,7 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
       <progress aria-label="河道进度" max={100} value={progress} />
     </div>
     <div className="stage-scene">
+      <ChapterIntro level={run.level}/>
       <RiverCanvas level={run.level} run={run} paddles={room.paddles} looks={looksOf(room)}
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
@@ -242,7 +246,7 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
       disabled={disabled || room.phase !== 'playing'} onShare={game.shareClue} />}
     {room.phase !== 'finished' && <div className="control-deck">
       <div>
-        <p className="control-instruction">一人划，船转向。两人一起划，船才前进。</p>
+        <p className="control-instruction">看船头虚线调整方向，橙点表示前方有浮木。两人一起划就前进。</p>
         <div className="control-state">
           {run.recovery === 'logs' && '划到了浮木，已回到最近的安全点。'}
           {run.recovery === 'shoal' && '碰到浅滩了。回到雾口，先对准安全水路。'}

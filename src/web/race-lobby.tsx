@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import { TRUCKS } from '../shared/trucks.js';
+import type { TruckId } from '../shared/trucks.js';
+import { StudyPicker } from './study-picker.js';
+import { TruckGarage } from './truck-garage.js';
+import { LEARNING_GAMES } from '../shared/learning.js';
 import { FUEL_MAX } from '../shared/race.js';
 import { RACE_TRACKS } from '../shared/race-tracks.js';
 import { RACE_SEATS } from '../shared/race-protocol.js';
@@ -31,7 +36,7 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
   return <div className="race-lobby">
     <div className="race-lobby-grid">
       <div className="race-panel">
-        <h2>邀请车手 <span className="race-chip live">{present.length}/4 已就位</span></h2>
+        <h2>邀请选手 <span className="race-chip live">{present.length}/4 已就位</span></h2>
         <div className="race-invite-top"><span>房间码</span><strong>{room.code}</strong></div>
         <div className="race-invite-row">
           <input className="race-input" aria-label="邀请链接" value={address.href} readOnly
@@ -44,10 +49,16 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
         <p className="race-assist">{copy === 'manual' ? '可选中链接手动复制，或直接分享房间码。'
           : '把链接或房间码发给同学，各自打开就能加入，最多 4 人。'}</p>
 
+        {room.mode === 'race' && me && <>
+          <TruckGarage truck={me.truck} colour={me.color}/>
+          <div className="truck-picker" aria-label="选择我的重卡">{(Object.keys(TRUCKS) as TruckId[]).map(id =>
+            <button key={id} className="rbtn ghost small" aria-pressed={me.truck===id} disabled={disabled}
+              onClick={()=>game.profile({truck:id})}>{TRUCKS[id].name}</button>)}</div>
+        </>}
         <div className="race-seats" style={{ marginTop: 14 }}>
           {RACE_SEATS.map(index => {
             const player = room.players[index];
-            if (!player) return <div key={index} className="race-seat empty">等待车手 {index + 1}…</div>;
+            if (!player) return <div key={index} className="race-seat empty">等待选手 {index + 1}…</div>;
             const own = index === seat;
             const color = CAR_COLORS[player.color];
             return <div key={index} className={`race-seat${own ? ' own' : ''}`} style={{ '--pc': color } as React.CSSProperties}>
@@ -58,6 +69,7 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
                   {player.online ? (player.ready ? '已准备' : '未准备') : '掉线'}
                 </span>
               </div>
+              {room.mode === 'race' && <small>{TRUCKS[player.truck].name}</small>}
               {own ? <>
                 <div className="race-seat-name">
                   <input className="race-input" value={name} maxLength={8} aria-label="你的名字"
@@ -80,7 +92,12 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
       </div>
 
       <div className="race-panel">
-        <h2>赛道与规则 {isHost && <span className="race-chip amber">房主设置</span>}</h2>
+        <StudyPicker course={room.course} disabled={disabled || !isHost} change={course=>game.config({course})}/>
+        {room.mode !== 'race' ? <div className={`learning-console ${room.mode}`}>
+          <span>{LEARNING_GAMES[room.mode].subject} · 六关挑战</span>
+          <h2>{LEARNING_GAMES[room.mode].name}</h2>
+          <p>{LEARNING_GAMES[room.mode].rule}</p><p>每人完成相同的六关。答对得一分，同分并列，可以给队友分享线索。</p>
+        </div> : <><h2>赛道与规则 {isHost && <span className="race-chip amber">房主设置</span>}</h2>
         <div className="race-tracks">
           {RACE_TRACKS.map(track => <button key={track.id} className="race-track"
             aria-pressed={room.trackId === track.id} disabled={disabled || !isHost}
@@ -101,12 +118,12 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
           <span className="race-assist" style={{ margin: 0 }}>满格 {FUEL_MAX} · 默认 6 格</span>
         </div>
         <ul className="race-rules" style={{ marginTop: 14 }}>
-          <li><span className="ico" style={{ color: 'var(--r-green)' }}>＋</span><span>进服务区答 <b>4 道题</b>（语文+数学），答对一题 <b>+1 格油</b>。</span></li>
+          <li><span className="ico" style={{ color: 'var(--r-green)' }}>＋</span><span>进服务区答 <b>4 道题</b>（语文、数学、英语轮换），答对一题 <b>+1 格油</b>。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-amber)' }}>－</span><span>每经过一个服务区消耗 <b>3 格油</b>，撞障碍一次漏 <b>1 格油</b>。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-red)' }}>✕</span><span>油箱降到 <b>0</b> 立即淘汰；坚持到终点就是赢家。</span></li>
-          <li><span className="ico" style={{ color: 'var(--r-cyan)' }}>↑</span><span>用 <b>↑↓</b> 在三条车道间变道躲障碍，顶部能看到所有人的进度和油量。</span></li>
+          <li><span className="ico" style={{ color: 'var(--r-cyan)' }}>↑</span><span>用 <b>← →</b> 或左右滑动变道，穿过算式答案所在的门可补 1 格油。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-magenta)' }}>✎</span><span>赛后要把<b>答错的题</b>复习一遍，全桌复习完才能开下一局。</span></li>
-        </ul>
+        </ul></>}
       </div>
     </div>
 
@@ -116,11 +133,11 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
         {me?.ready ? '取消准备' : '我准备好了'}
       </button>
       {isHost && <button className="rbtn primary big" disabled={disabled || !allReady} onClick={() => game.start()}>
-        {allReady ? '开始比赛 🏁' : '等所有车手准备'}
+        {allReady ? '开始比赛 🏁' : '等所有人准备'}
       </button>}
       <span className="spacer" />
       <button className="rbtn ghost" disabled={disabled} onClick={onExit}>退出房间</button>
     </div>
-    {!isHost && <p className="race-assist">房主会在所有人准备后开始比赛。先选好名字和赛车颜色吧。</p>}
+    {!isHost && <p className="race-assist">房主会在所有人准备后开始比赛。可以先选好名字和代表色。</p>}
   </div>;
 }

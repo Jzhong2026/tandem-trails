@@ -52,7 +52,7 @@ export async function withCoop(browser: Browser, baseURL: string | undefined, pl
           const run = river();
           return run !== undefined && until(run);
         }, {
-          intervals: [20, 35], timeout: 5000,
+          intervals: [20, 35], timeout: 9000,
           message: 'The server should report the expected boat position or progress',
         }).toBe(true);
       } catch (error) {

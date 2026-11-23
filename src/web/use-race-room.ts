@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { LearningAction, LearningMode } from '../shared/learning.js';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import type { Ack, RoomError, Session } from '../shared/protocol.js';
@@ -54,12 +55,18 @@ export function useRaceRoom() {
 
   const admit = useCallback((value: RaceAdmission) => {
     saveSession({ code: value.room.code, token: value.token });
+    const url = new URL(location.href);
+    url.searchParams.set('race',value.room.code);
+    history.replaceState(null,'',url);
     setSeat(value.seat);
     setRoom(value.room);
   }, [saveSession]);
 
   const reset = useCallback(() => {
     saveSession(null);
+    const url = new URL(location.href);
+    url.searchParams.delete('race');
+    history.replaceState(null,'',url);
     setSeat(null);
     setRoom(null);
   }, [saveSession]);
@@ -67,6 +74,8 @@ export function useRaceRoom() {
   useEffect(() => {
     socket.on('connect', async () => {
       const connectionId = socket.id;
+      const invited = new URL(location.href).searchParams.get('race')?.toUpperCase();
+      if (invited && session.current && invited !== session.current.code) saveSession(null);
       if (!session.current) {
         setConnection('online');
         return;
@@ -102,7 +111,7 @@ export function useRaceRoom() {
       socket.removeAllListeners();
       socket.disconnect();
     };
-  }, [socket, admit, reset]);
+  }, [socket, admit, reset, saveSession]);
 
   async function command<T>(send: () => Promise<Ack<T>>, success: (value: T) => void) {
     if (!socket.connected || connection !== 'online' || commandPending.current) return;
@@ -127,9 +136,16 @@ export function useRaceRoom() {
       setConnection('connecting');
       socket.disconnect().connect();
     },
+    createLearning: (mode: LearningMode) => command<RaceAdmission>(() =>
+      socket.timeout(timeoutMs).emitWithAck('learning:create', mode), admit),
+    act: (action: LearningAction) => { if (socket.connected) socket.emit('learning:act', action); },
     create: () => command<RaceAdmission>(() => socket.timeout(timeoutMs).emitWithAck('race:create'), admit),
     join: (code: string) => command<RaceAdmission>(() => socket.timeout(timeoutMs).emitWithAck('race:join', code), admit),
-    leave: () => command<null>(() => socket.timeout(timeoutMs).emitWithAck('race:leave'), reset),
+    leave: () => {
+      saveSession(null);
+      if (socket.connected) socket.emit('race:leave', () => {});
+      reset();
+    },
     config: (config: RaceConfig) => command<RaceRoomView>(() => socket.timeout(timeoutMs).emitWithAck('race:config', config), setRoom),
     profile: (profile: RaceProfile) => command<RaceRoomView>(() => socket.timeout(timeoutMs).emitWithAck('race:profile', profile), setRoom),
     ready: (ready: boolean, lobbyRevision: number) => command<RaceRoomView>(() =>

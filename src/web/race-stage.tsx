@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FUEL_MAX, STATION_COST } from '../shared/race.js';
 import type { PlayerStatus } from '../shared/race.js';
-import { trackById } from '../shared/race-tracks.js';
+import { SUBJECT_NAMES } from '../shared/study.js';
+import { numberGates, trackById } from '../shared/race-tracks.js';
 import type { RaceRoomView, RaceSeat } from '../shared/race-protocol.js';
 import type { RaceGame } from './use-race-room.js';
 import type { RaceAudio } from './race-audio.js';
@@ -30,14 +31,19 @@ interface Prev {
   hits: number; fuel: number; status: PlayerStatus; quizPhase: string | null; countdown: number | null;
 }
 
-const OPTION_KEYS = ['A', 'B', 'C', 'D'];
+const OPTION_KEYS = ['1', '2', '3', '4'];
 
 export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   const track = trackById(room.trackId);
   const obstacles = useMemo(() => buildObstacles(track), [track]);
+  const { grade, term } = room.course;
+  const course = useMemo(()=>({grade,term}),[grade,term]);
+  const gates = useMemo(() => numberGates(track,course), [track,course]);
+  const swipe = useRef<{ id: number; x: number; y: number } | null>(null);
   const scenery = useMemo(() => buildScenery(track), [track]);
   const me = room.players[seat];
 
+  const truck = me?.truck ?? 'scania';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glCanvasRef = useRef<HTMLCanvasElement>(null);
   const roomRef = useRef(room);
@@ -46,6 +52,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   const display = useRef<Display>({ x: 0, laneY: 1, hitFlash: 0, shake: 0, exhaustClock: 0, smokeClock: 0 });
   const prev = useRef<Prev>({ hits: 0, fuel: room.startFuel, status: 'racing', quizPhase: null, countdown: null });
   const particles = useRef(new RaceParticles());
+  const [skipIntro,setSkipIntro]=useState(false);
   const [spectating, setSpectating] = useState(false);
   const [marks, setMarks] = useState<Record<number, boolean>>({});
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
@@ -113,7 +120,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
     let scene: RaceScene | null = null;
     if (glCanvas) {
       try {
-        scene = new RaceScene(glCanvas, track, obstacles, scenery);
+        scene = new RaceScene(glCanvas, track, obstacles, scenery, truck, course);
         scene.setPlayerNumber((roomRef.current.players[seat]?.color ?? seat) + 1);
       } catch {
         scene = null;
@@ -238,7 +245,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       } else {
         if (d.shake > 0) ctx.translate((Math.random() - 0.5) * d.shake * 9, (Math.random() - 0.5) * d.shake * 9);
         paintRaceFrame2D(ctx, {
-          track, obstacles, scenery, camera: cam, cameraX: d.x - CAM_BACK,
+          truck, track, obstacles, scenery, camera: cam, cameraX: d.x - CAM_BACK,
           laneY: d.laneY, color, status, hitFlash: d.hitFlash, boost: status === 'racing',
           stationActive: current.quiz?.station ?? null, time: time / 1000, particles: particles.current,
           fuel: player?.fuel ?? room.startFuel, fuelMax: FUEL_MAX,
@@ -253,14 +260,14 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       particles.current.clear();
       scene?.dispose();
     };
-  }, [track, obstacles, scenery, seat, audio]);
+  }, [track, obstacles, scenery, seat, audio, truck,course]);
 
   const review = room.review ?? [];
   const reviewEntry = reviewIndex != null ? review[reviewIndex] : undefined;
   const pendingReview = room.phase === 'finished' && review.length > 0 && !room.reviewDone;
 
   const pickReview = (option: number) => {
-    if (reviewEntry && reviewPick === null) {
+    if (reviewEntry && option < reviewEntry.options.length && reviewPick === null) {
       setReviewPick(option);
       audio.unlock();
       audio.play(option === reviewEntry.answer ? 'correct' : 'wrong');
@@ -269,6 +276,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
 
   const finishReview = () => {
     setReviewPick(null);
+    if (!reviewEntry || reviewPick !== reviewEntry.answer) return;
     if (reviewIndex != null && reviewIndex >= review.length - 1) {
       void game.reviewDone();
     } else {
@@ -278,6 +286,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
+      if (event.repeat || event.altKey || event.metaKey || event.ctrlKey) return;
       const current = roomRef.current;
       const player = current.players[seat];
       if (reviewEntry) {
@@ -304,13 +313,9 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
         }
         return;
       }
-      if (event.repeat) {
-        if (['ArrowUp', 'ArrowDown', 'Space'].includes(event.code)) event.preventDefault();
-        return;
-      }
-      if (event.code === 'ArrowUp' || event.code === 'KeyW') { event.preventDefault(); audio.unlock(); game.lane(-1); }
-      if (event.code === 'ArrowDown' || event.code === 'KeyS') { event.preventDefault(); audio.unlock(); game.lane(1); }
-      if (event.code === 'Enter' && current.phase === 'finished') { event.preventDefault(); game.replay(); }
+      if (player?.status !== 'racing' || current.phase !== 'playing') return;
+      if (['ArrowLeft', 'KeyA', 'ArrowUp', 'KeyW'].includes(event.code)) { event.preventDefault(); audio.unlock(); game.lane(-1); }
+      if (['ArrowRight', 'KeyD', 'ArrowDown', 'KeyS'].includes(event.code)) { event.preventDefault(); audio.unlock(); game.lane(1); }
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
@@ -343,6 +348,9 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   const showDone = !showResults && !spectating && myStatus === 'finished';
   const othersPending = present.filter(player => player.seat !== seat && player.reviewWrong > 0 && !player.reviewDone);
 
+  const gate = gates[me?.stationsCleared ?? 0];
+  const distance = gate && me ? gate.x - me.x : Infinity;
+  const driving = room.phase === 'playing' && myStatus === 'racing';
   return <section className="race-play">
     <div className="race-hud">
       {present.map(player => <PlayerCard key={player.seat} player={player} own={player.seat === seat}
@@ -351,20 +359,44 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
 
     <div className="race-scene">
       <canvas className="race-gl" ref={glCanvasRef} aria-hidden="true" />
-      <canvas className="race-canvas" ref={canvasRef} role="img" aria-label={`${track.name} 赛车画面`} />
+      <canvas className="race-canvas" ref={canvasRef}
+        onPointerDown={event => {
+          if (!driving || !event.isPrimary || event.button !== 0) return;
+          swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => { swipe.current = null; }}
+        onPointerUp={event => {
+          const start = swipe.current;
+          swipe.current = null;
+          if (!driving || start?.id !== event.pointerId) return;
+          const dx = event.clientX - start.x;
+          if (Math.abs(dx) > 26 && Math.abs(dx) > Math.abs(event.clientY - start.y)) {
+            audio.unlock();
+            game.lane(Math.sign(dx));
+          }
+        }} role="img" aria-label={`${track.name} 赛车画面`} />
 
-      {(countdownNum != null || showGo) && !quiz && <div className="race-overlay">
+      {driving && me && gate && distance <= track.speed * 5 && distance > -track.speed * 1.8 && <div className="number-gate">
+        {distance > 0 ? <>
+          <small>算一算，开进答案车道</small><strong>{gate.prompt} = ?</strong>
+          <div>{gate.values.map((value, lane) => <span key={lane} className={me.lane === lane ? 'selected' : ''}>{value}</span>)}</div>
+        </> : <strong>{me.lastGateCorrect ? '✓ ' : ''}{gate.prompt} = {gate.values[gate.answerLane]}</strong>}
+      </div>}
+      {(countdownNum != null || showGo) && !quiz && !skipIntro && <div className="race-overlay grid-intro">
         <div className={`race-count${showGo ? ' go' : ''}`} key={showGo ? 'go' : countdownNum}>
           {showGo ? 'GO!' : countdownNum}
         </div>
-        <p>准备出发！答对题目加油，撞障碍漏油，油尽就被淘汰。</p>
+        <p>左右变道，穿过正确的数字门加油。</p>
+        <button className="rbtn ghost small" onClick={()=>setSkipIntro(true)}>跳过片头</button>
       </div>}
 
       {quiz && me && <div className="race-quiz">
         <div className="race-quiz-card">
+          <div className="pit-banner" aria-hidden="true"/>
           <div className="race-quiz-top">
             <span className="race-quiz-station">服务区 {quiz.station + 1} · 第 {quiz.index + 1}/{quiz.total} 题</span>
-            <span className={`race-quiz-subject ${quiz.subject}`}>{quiz.subject === 'chinese' ? '语文' : '数学'}</span>
+            <span className={`race-quiz-subject ${quiz.subject}`}>{SUBJECT_NAMES[quiz.subject]}</span>
             <span className="race-chip">{quiz.topic}</span>
             <span className="race-quiz-dots">
               {Array.from({ length: quiz.total }, (_, i) => {
@@ -385,13 +417,14 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
             })}
           </div>
           {quiz.phase === 'reveal' && <div className={`race-quiz-reveal ${quiz.wasCorrect ? 'good' : 'bad'}`}>
-            <div className="race-quiz-verdict">{quiz.wasCorrect ? '答对了！油箱 +1 格' : `答错了，正确答案是 ${OPTION_KEYS[quiz.answer ?? 0]}`}</div>
+            {quiz.wasCorrect && <div className="fuel-spark" aria-hidden="true"><i/><i/><i/></div>}
+            <div className="race-quiz-verdict" role="status">{quiz.wasCorrect ? (quiz.gainedFuel ? '答对了！油箱 +1 格' : '答对了！油箱已满') : `答错了，正确答案是 ${OPTION_KEYS[quiz.answer ?? 0]}`}</div>
             <p className="race-quiz-explain">{quiz.explain}</p>
           </div>}
           <div className="race-quiz-foot">
-            <span className="race-quiz-fuel">当前油量 <b>{me.fuel}/{FUEL_MAX}</b> · 出站消耗 {STATION_COST} 格</span>
+            <span className={`race-quiz-fuel${quiz.phase==='reveal' && quiz.wasCorrect?' refilled':''}`}>当前油量 <b>{me.fuel}/{FUEL_MAX}</b> · 出站消耗 {STATION_COST} 格</span>
             {quiz.phase === 'reveal' && <button className="rbtn primary" onClick={() => { audio.unlock(); game.advance(); }}>
-              {quiz.index + 1 < quiz.total ? '下一题 →' : '加满油，出发！'}
+              {quiz.index + 1 < quiz.total ? '下一题 →' : '驶出服务区 →'}
             </button>}
           </div>
         </div>
@@ -401,7 +434,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
         <div className="race-quiz-card">
           <div className="race-quiz-top">
             <span className="race-quiz-station">错题复习 · 第 {(reviewIndex ?? 0) + 1}/{review.length} 题</span>
-            <span className={`race-quiz-subject ${reviewEntry.subject}`}>{reviewEntry.subject === 'chinese' ? '语文' : '数学'}</span>
+            <span className={`race-quiz-subject ${reviewEntry.subject}`}>{SUBJECT_NAMES[reviewEntry.subject]}</span>
             <span className="race-chip">{reviewEntry.topic}</span>
             <span className="race-quiz-dots">
               {review.map((entry, i) => {
@@ -430,7 +463,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
           <div className="race-quiz-foot">
             <span className="race-quiz-fuel">这局这道题你原来答错了，复习完才能开始下一局。</span>
             {reviewPick !== null && <button className="rbtn primary" onClick={finishReview}>
-              {(reviewIndex ?? 0) + 1 < review.length ? '下一题 →' : '复习完成'}
+              {reviewPick !== reviewEntry.answer ? '再试一次' : (reviewIndex ?? 0) + 1 < review.length ? '下一题 →' : '复习完成'}
             </button>}
           </div>
         </div>
@@ -496,15 +529,15 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       </div>}
     </div>
 
-    <p className="race-hint"><b>玩法：</b>↑↓ 变道躲障碍，撞一次漏 1 格油；进服务区答 4 题，答对 +1 格，出站扣 3 格；油尽淘汰，先到终点获胜。赛后要把答错的题复习一遍才能再来一局。当前赛道 {track.name}。</p>
+    <p className="race-hint"><b>玩法：</b>左右变道躲障碍，选对数字门补 1 格油，撞一次漏 1 格油；进服务区答 4 题，答对 +1 格，出站扣 3 格；油尽淘汰，先到终点获胜。赛后要把答错的题复习一遍才能再来一局。当前赛道 {track.name}。</p>
 
     {touch ? <div className="race-pads">
-      <button className="race-pad up" aria-label="向上变道" {...pad(-1)}>▲<small>上变道 (W / ↑)</small></button>
-      <button className="race-pad down" aria-label="向下变道" {...pad(1)}>▼<small>下变道 (S / ↓)</small></button>
+      <button disabled={!driving} className="race-pad up" aria-label="向左变道" {...pad(-1)}>◀<small>向左</small></button>
+      <button disabled={!driving} className="race-pad down" aria-label="向右变道" {...pad(1)}>▶<small>向右</small></button>
     </div> : <div className="race-deck">
       <div className="race-keys">
-        <div><kbd>↑</kbd><kbd>W</kbd>上变道</div>
-        <div><kbd>↓</kbd><kbd>S</kbd>下变道</div>
+        <div><kbd>←</kbd><kbd>A</kbd>向左</div>
+        <div><kbd>→</kbd><kbd>D</kbd>向右</div>
         <div>答题 <kbd>1</kbd>~<kbd>4</kbd> 选择，<kbd>回车</kbd> 继续</div>
       </div>
       <button className="rbtn ghost small" onClick={() => setTouch(true)}>显示触屏按键</button>

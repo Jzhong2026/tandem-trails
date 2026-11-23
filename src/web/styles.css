@@ -321,3 +321,21 @@ kbd { border: 1px solid var(--line); padding: 1px 4px; border-radius: 4px; }
 @media (hover: hover) and (max-width: 760px) {
   .keyboard-guide { display: block; }
 }
+
+.mission-card { display: flow-root; }
+.mission-still { float: right; width: min(34%, 170px); aspect-ratio: 3/2; margin: 0 0 .35rem .8rem; object-fit: cover; border-radius: 8px; }
+.chapter-intro, .quest-opening-shot {
+  position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none;
+  animation: chapter-iris 2.1s ease-in-out both;
+}
+.chapter-intro img { width: 100%; height: 100%; object-fit: cover; animation: chapter-zoom 2.2s ease-out both; }
+.chapter-intro div, .quest-opening-shot {
+  display: flex; flex-direction: column; justify-content: flex-end; padding: clamp(12px, 3vw, 40px);
+  color: white; text-shadow: 0 2px 5px #172322;
+}
+.chapter-intro div { position: absolute; inset: 0; background: linear-gradient(transparent 40%, #071f27d6); }
+.chapter-intro strong, .quest-opening-shot strong { font-size: clamp(1.05rem, 3vw, 2.3rem); line-height: 1.3; }
+.quest-opening-shot { background: linear-gradient(transparent 55%,#142442b0); }
+@keyframes chapter-zoom { from { transform:scale(1.08); } to { transform:scale(1); } }
+@keyframes chapter-iris { 0%,58% {opacity: 1;} 100% {opacity:0;visibility:hidden;} }
+@media (prefers-reduced-motion:reduce) { .chapter-intro,.quest-opening-shot {display:none;} }

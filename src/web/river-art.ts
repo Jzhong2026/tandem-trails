@@ -1,3 +1,4 @@
+import { drawLandscape, drawModel, models } from './diorama.js';
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
@@ -88,6 +89,7 @@ export function paintRiver(ctx: Context, level: RiverLevel) {
   bank(ctx, false, width, height);
   bank(ctx, true, width, height);
 
+  drawLandscape(ctx,models.pine,width,12,0,.78);
   // Reeds, stones and small flowers break up the two shore silhouettes.
   for (let i = 0; i < 74; i++) {
     const x = (i * 163) % width;
@@ -101,7 +103,7 @@ export function paintRiver(ctx: Context, level: RiverLevel) {
 
   for (const buoy of buoys) {
     ellipse(ctx, buoy.x, buoy.y + 5, 12, 4, '#cde2cf55');
-    ellipse(ctx, buoy.x, buoy.y, 6.5, 7.5, '#f7d388');
+    drawModel(ctx,models.buoy,buoy.x,buoy.y-2,1.15,.4);
     ellipse(ctx, buoy.x - 1.8, buoy.y - 2.1, 2.4, 2.4, '#ffedb4');
     roundRect(ctx, buoy.x - 7, buoy.y + 1.5, 14, 2.8, 1, '#ad572e');
   }
@@ -269,6 +271,14 @@ export function paintActors(ctx: Context, run: RiverView, paddles: Paddles, look
   ctx.save();
   ctx.translate(run.x, run.y);
   ctx.rotate(run.heading);
+  if (!run.finished && !run.recoveryMs) {
+    for (let i=0;i<5;i++) {
+      const ahead=44+i*14, px=run.x+Math.cos(run.heading)*ahead, py=run.y+Math.sin(run.heading)*ahead;
+      const blocked=course.logs.some(log=>((px-log.x)/(log.rx+15))**2+((py-log.y)/(log.ry+15))**2<=1)
+        || (course.rafts??[]).some(raft=>((px-raft.x)/(raft.rx+15))**2+((py-raftY(raft,run.elapsedMs+ahead/126*1000))/(raft.ry+15))**2<=1);
+      ellipse(ctx,ahead,0,blocked?4:3,blocked?4:2,blocked?'#ff7f60':'#fff6bf');
+    }
+  }
   if (run.recoveryMs > 0) ctx.globalAlpha = 0.65;
   for (const [index, side] of [-1, 1].entries()) {
     if (!paddles[index]) continue;
