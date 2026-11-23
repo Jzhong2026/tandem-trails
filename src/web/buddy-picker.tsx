@@ -49,7 +49,7 @@ export function BuddyControls({ appearance, onChange }: { appearance: Appearance
         <button key={body} className="pick-btn" aria-pressed={appearance.body === body}
           onClick={() => onChange({
             ...appearance, body,
-            name: appearance.name === BODY_DEFAULT_NAME[appearance.body] ? BODY_DEFAULT_NAME[body] : appearance.name,
+            name: name === BODY_DEFAULT_NAME[appearance.body] ? BODY_DEFAULT_NAME[body] : name,
           })}>
           {BODY_LABEL[body]}
         </button>
@@ -59,13 +59,13 @@ export function BuddyControls({ appearance, onChange }: { appearance: Appearance
       {BUDDY_PALETTES.map((pal, index) => (
         <button key={index} className="pick-swatch" style={{ background: pal.cap }}
           aria-label={`配色 ${index + 1}`} aria-pressed={appearance.palette === index}
-          onClick={() => onChange({ ...appearance, palette: index })} />
+          onClick={() => onChange({ ...appearance, name, palette: index })} />
       ))}
     </div>
     <div className="buddy-row" role="group" aria-label="体型">
       {BUDDY_SIZES.map(size => (
         <button key={size} className="pick-btn" aria-pressed={appearance.size === size}
-          onClick={() => onChange({ ...appearance, size })}>
+          onClick={() => onChange({ ...appearance, name, size })}>
           {SIZE_LABEL[size]}
         </button>
       ))}

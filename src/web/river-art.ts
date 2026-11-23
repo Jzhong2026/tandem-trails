@@ -3,7 +3,7 @@ import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
 import { raftY } from '../shared/river.js';
 import { CHAPTER_OUTFIT, paintBuddy, paintNameTag } from './buddy.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
@@ -215,7 +215,7 @@ function paintDuck(ctx: Context, x: number, y: number, size = 1) {
   ctx.restore();
 }
 
-export function paintActors(ctx: Context, run: RiverView, paddles: Paddles, looks: Looks) {
+export function paintActors(ctx: Context, run: RiverView, paddles: Paddles, looks: BuddyLooks) {
   const seconds = animationSeconds(run.elapsedMs);
   const course = RIVER_COURSES[run.level];
   for (const current of course.currents ?? []) {

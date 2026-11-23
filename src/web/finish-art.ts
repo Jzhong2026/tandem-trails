@@ -2,7 +2,7 @@ import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import { CHAPTER_OUTFIT, paintBuddy } from './buddy.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
@@ -36,7 +36,7 @@ function sparkle(ctx: Context, x: number, y: number, size: number, color: string
   [x - size * .8, y], [x - size * .25, y - size * .24]]);
 }
 
-function dock(ctx: Context, time: number, rescued: boolean, looks: Looks) {
+function dock(ctx: Context, time: number, rescued: boolean, looks: BuddyLooks) {
   const arrive = progress(time, 0, .49);
   const hop = progress(time, .43, .78);
   oval(ctx, 0, 40, 121, 16, '#123e4b');
@@ -167,7 +167,7 @@ function hatch(ctx: Context, time: number) {
   ctx.restore();
 }
 
-function coral(ctx: Context, time: number, looks: Looks) {
+function coral(ctx: Context, time: number, looks: BuddyLooks) {
   const arrive = progress(time, 0, .5);
   const swim = progress(time, .45, .85);
   oval(ctx, 0, 49, 96, 11, '#0d3040');
@@ -233,7 +233,7 @@ function coral(ctx: Context, time: number, looks: Looks) {
   ctx.globalAlpha = 1;
 }
 
-export function paintFinish(ctx: Context, level: GameLevel, time: number, looks: Looks = DEFAULT_APPEARANCE) {
+export function paintFinish(ctx: Context, level: GameLevel, time: number, looks: BuddyLooks = DEFAULT_APPEARANCE) {
   const mine = isMineLevel(level);
   const egg = isEggLevel(level);
   const sub = isSubLevel(level);

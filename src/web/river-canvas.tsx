@@ -4,7 +4,7 @@ import { initialRiverView } from '../shared/river.js';
 import type { Paddles, RiverView } from '../shared/river.js';
 import { RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { paintActors, paintFogClues, paintRiver } from './river-art.js';
 
 const idlePaddles: Paddles = [false, false];
@@ -15,7 +15,7 @@ interface Props {
   paddles?: Paddles;
   channel?: Channel | null;
   flag?: Flag | null;
-  looks?: Looks;
+  looks?: BuddyLooks;
 }
 
 export function RiverCanvas({ level, run, paddles = idlePaddles, channel = null, flag = null, looks = DEFAULT_APPEARANCE }: Props) {

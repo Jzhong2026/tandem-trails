@@ -165,7 +165,6 @@ export function paintHead(ctx: Context, h: HeadOptions) {
   const furDark = species?.furDark ?? pal.suitDark;
   const muzzle = species?.muzzle ?? pal.shirt;
   ctx.save();
-  ctx.save();
   ctx.rotate(lean * 0.2);
   if (body === 'bear') {
     ellipse(ctx, -5.6, -5.4, 2.8, 2.8, furDark);

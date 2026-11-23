@@ -5,7 +5,7 @@ import type { EggLevel } from '../shared/game-levels.js';
 import type { Seat } from '../shared/protocol.js';
 import { buddyScale, CHAPTER_OUTFIT, paintBuddy } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { interpolateEgg } from './panorama-motion.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
@@ -127,7 +127,7 @@ function windStreaks(ctx: Context, wind: EggWind, level: EggLevel, seconds: numb
   ctx.restore();
 }
 
-function paintRun(ctx: Context, run: EggView, seat: Seat, looks: Looks) {
+function paintRun(ctx: Context, run: EggView, seat: Seat, looks: BuddyLooks) {
   const level = run.level;
   const layout: EggLayout = EGG_LAYOUTS[level];
   const seconds = animationSeconds(run.elapsedMs);
@@ -198,7 +198,7 @@ const paintGustLayout = (ctx: Context) => paintLayout(ctx, 'egg2');
 const focusX = (run: EggView) => run.x;
 
 export function EggCanvas({ run = preview, seat, frozen = false, looks = DEFAULT_APPEARANCE }: {
-  run?: EggView; seat: Seat; frozen?: boolean; looks?: Looks;
+  run?: EggView; seat: Seat; frozen?: boolean; looks?: BuddyLooks;
 }) {
   return <PanoramaCanvas run={run} seat={seat} world={EGG_LAYOUTS[run.level]} focusX={focusX}
     paintLayout={run.level === 'egg2' ? paintGustLayout : paintEggLayout} paintRun={paintRun}

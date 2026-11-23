@@ -4,7 +4,7 @@ import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
 import { CHAPTER_OUTFIT, paintBuddy, paletteOf } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { interpolateSub } from './panorama-motion.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
@@ -230,7 +230,7 @@ function airBubble(ctx: Context, x: number, y: number, seconds: number, index: n
   ellipse(ctx, x - 4, y + bob - 4, 3, 2.2, '#ffffffcc');
 }
 
-function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number, looks: Looks) {
+function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number, looks: BuddyLooks) {
   const { x, y } = run;
   ctx.save();
   ctx.translate(x, y + Math.sin(seconds * 1.6) * 1.5);
@@ -288,7 +288,7 @@ function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number, look
   if (run.rescued && !run.finished) seahorse(ctx, x - 46, y - 4, seconds, .8);
 }
 
-function paintRun(ctx: Context, run: SubView, seat: Seat, looks: Looks) {
+function paintRun(ctx: Context, run: SubView, seat: Seat, looks: BuddyLooks) {
   const seconds = animationSeconds(run.elapsedMs);
   for (let i = 0; i < 6; i++) {
     const x = 90 + i * 160;
@@ -353,7 +353,7 @@ function paintRun(ctx: Context, run: SubView, seat: Seat, looks: Looks) {
 const focusX = (run: SubView) => run.x;
 
 export function SubCanvas({ run = preview, seat, frozen = false, looks = DEFAULT_APPEARANCE }: {
-  run?: SubView; seat: Seat; frozen?: boolean; looks?: Looks;
+  run?: SubView; seat: Seat; frozen?: boolean; looks?: BuddyLooks;
 }) {
   return <PanoramaCanvas run={run} seat={seat} world={SUB} focusX={focusX}
     paintLayout={paintLayout} paintRun={paintRun} theme="sub-canvas" frozen={frozen}

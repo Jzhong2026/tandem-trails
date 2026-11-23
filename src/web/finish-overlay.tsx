@@ -4,13 +4,15 @@ import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { ChapterStory } from '../shared/story.js';
-import type { Looks } from './panorama-canvas.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { paintFinish } from './finish-art.js';
 
 const durationMs = 2100;
 
-function FinishIllustration({ level, looks }: { level: GameLevel; looks: Looks }) {
+function FinishIllustration({ level, looks }: { level: GameLevel; looks: BuddyLooks }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const latestLooks = useRef(looks);
+  useEffect(() => { latestLooks.current = looks; }, [looks]);
   useLayoutEffect(() => {
     const target = canvas.current!;
     const ctx = target.getContext('2d');
@@ -23,7 +25,7 @@ function FinishIllustration({ level, looks }: { level: GameLevel; looks: Looks }
       ctx!.setTransform(1, 0, 0, 1, 0, 0);
       ctx!.clearRect(0, 0, target.width, target.height);
       ctx!.setTransform(3, 0, 0, 3, target.width / 2, target.height / 2);
-      paintFinish(ctx!, level, time, looks);
+      paintFinish(ctx!, level, time, latestLooks.current);
       if (time < 1) frame = requestAnimationFrame(draw);
     }
     function settle() {
@@ -38,12 +40,12 @@ function FinishIllustration({ level, looks }: { level: GameLevel; looks: Looks }
       cancelAnimationFrame(frame);
       motion.removeEventListener('change', settle);
     };
-  }, [level, looks]);
+  }, [level]);
   return <canvas className="finish-art" width={780} height={480} ref={canvas} aria-hidden="true" />;
 }
 
 export function FinishOverlay({ level, title, summary, children, looks = DEFAULT_APPEARANCE, story = null }: {
-  level: GameLevel; title: string; summary: string; children: ReactNode; looks?: Looks; story?: ChapterStory | null;
+  level: GameLevel; title: string; summary: string; children: ReactNode; looks?: BuddyLooks; story?: ChapterStory | null;
 }) {
   const theme = isEggLevel(level) ? 'egg' : isMineLevel(level) ? 'mine' : isSubLevel(level) ? 'sub' : 'river';
   const [armed, setArmed] = useState(false);

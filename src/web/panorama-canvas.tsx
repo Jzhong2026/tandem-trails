@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react';
-import type { Appearance } from '../shared/buddy.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
 
 type Context = CanvasRenderingContext2D;
-export type Looks = Record<Seat, Appearance>;
 
 export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paintRun, theme, frozen, interpolate, looks }: {
   run: T;
@@ -11,11 +10,11 @@ export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paint
   world: { width: number; height: number };
   focusX: (run: T, seat: Seat) => number;
   paintLayout: (ctx: Context) => void;
-  paintRun: (ctx: Context, run: T, seat: Seat, looks: Looks) => void;
+  paintRun: (ctx: Context, run: T, seat: Seat, looks: BuddyLooks) => void;
   theme: string;
   frozen: boolean;
   interpolate: (from: T, to: T, blend: number) => T;
-  looks: Looks;
+  looks: BuddyLooks;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const latest = useRef({ run, frozen, looks });
