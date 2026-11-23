@@ -98,7 +98,12 @@ test('a family finishes the first mine, advances to the double bridge, and passe
     }
     // Lower collects its firefly, returns to the cart switch; upper rides the cart across the gap.
     await keyUntil('d', state => state.players.left.firefly);
-    await keyUntil('a', state => state.players.left.x <= MINE2.cart.switchX);
+    await host.keyboard.down('e');
+    try {
+      await keyUntil('a', state => Math.abs(state.players.left.x - MINE2.cart.switchX) <= MINE2.interactRange);
+    } finally {
+      await host.keyboard.up('e');
+    }
     await touchUntil('向右走', state => state.players.right.x === MINE2.cart.from);
     await expect(guest.getByText('站在矿车上，等下层按住蓝色开关')).toBeVisible();
     await host.keyboard.down('e');
