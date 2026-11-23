@@ -163,8 +163,10 @@ export function useRoom() {
     selectLevel: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:select-level', level), setRoom),
     ready: (ready: boolean, lobbyRevision: number) => command<RoomView>(() =>
       socket.timeout(timeoutMs).emitWithAck('room:ready', ready, lobbyRevision), setRoom),
-    setAppearance: (appearance: Appearance) => command<RoomView>(() =>
-      socket.timeout(timeoutMs).emitWithAck('room:appearance', appearance), setRoom),
+    setAppearance: (appearance: Appearance) => {
+      // Socket.IO preserves edit order. Every accepted edit is broadcast back to both seats.
+      if (socket.connected && connection === 'online') socket.emit('room:appearance', appearance);
+    },
     replay: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:replay'), setRoom),
     next: (level: GameLevel) => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('room:next', level), setRoom),
     shareClue: () => command<RoomView>(() => socket.timeout(timeoutMs).emitWithAck('game:share-clue'), setRoom),

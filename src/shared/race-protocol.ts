@@ -1,6 +1,7 @@
 import type { StudyCourse } from './study.js';
 import type { TruckId } from './trucks.js';
-import type { LearningMode, LearningAction, LearningView, MatchMode } from './learning.js';
+import type { WorkshopAction,WorkshopView } from './workshop.js';
+import type { TournamentMode, LearningAction, LearningView, MatchMode } from './learning.js';
 import type { PlayerStatus } from './race.js';
 import type { RaceSubject } from './race-questions.js';
 import type { Ack, ClosedReason, Respond, RoomError, Session } from './protocol.js';
@@ -84,6 +85,7 @@ export interface RaceRoomView {
   course: StudyCourse;
   mode: MatchMode;
   learning: LearningView | null;
+  workshop: WorkshopView | null;
   code: string;
   phase: RacePhase;
   trackId: string;
@@ -122,7 +124,9 @@ export type RaceRespond<T> = Respond<T>;
 export type { ClosedReason, RoomError, Session };
 
 export interface RaceClientEvents {
-  'learning:create': (mode: LearningMode, respond: RaceRespond<RaceAdmission>) => void;
+  'tournament:create': (settings:{mode:MatchMode;course:StudyCourse},respond:RaceRespond<RaceAdmission>)=>void;
+  'workshop:act': (action:WorkshopAction)=>void;
+  'learning:create': (mode: TournamentMode, respond: RaceRespond<RaceAdmission>) => void;
   'learning:act': (action: LearningAction) => void;
   'race:create': (respond: RaceRespond<RaceAdmission>) => void;
   'race:join': (code: string, respond: RaceRespond<RaceAdmission>) => void;

@@ -48,6 +48,12 @@ function solid(
   return { rings, sides, size, at, colour };
 }
 export const models = {
+  chartIsland: [solid(barrel,10,[26,2,17],[0,-5,0],0x7bded2),
+    solid(gem,9,[23,7,14],[0,0,0],0xccac73),solid(barrel,9,[19,3,12],[0,4,0],0x78b981),
+    solid(cone,7,[6,10,7],[-6,14,-2],0x337b68),solid(cone,7,[4,7,4],[4,11,1],0x529064)],
+  lighthouse: [solid(barrel,9,[5,10,5],[0,7,0],0xfff0d3),solid(barrel,9,[5,3,5],[0,10,0],0xdb6b4d),
+    solid(barrel,8,[6,3,6],[0,19,0],0xffc06d),solid(cone,8,[7,4,7],[0,25,0],0xbf5545)],
+  sunCrystal: [solid(gem,8,[10,17,9],[0,0,0],0xffc34d),solid(gem,6,[5,10,5],[9,-5,0],0xffe18a)],
   pine: [
     solid(barrel, 5, [3, 8, 3], [0, -4, 0], 0x8c7158),
     solid(cone, 7, [12, 13, 12], [0, 9, 0], 0x456d66),

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LearningAction, LearningMode } from '../shared/learning.js';
+import type { StudyCourse } from '../shared/study.js';
+import type { WorkshopAction } from '../shared/workshop.js';
+import type { LearningAction, TournamentMode } from '../shared/learning.js';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import type { Ack, RoomError, Session } from '../shared/protocol.js';
@@ -33,7 +35,7 @@ function loadSession(): Session | null {
   return null;
 }
 
-export function useRaceRoom() {
+export function useRaceRoom(course:StudyCourse) {
   const [socket] = useState<Socket<RaceServerEvents, RaceClientEvents>>(() => io({ autoConnect: false }));
   const [connection, setConnection] = useState<'connecting' | 'online' | 'offline'>('connecting');
   const [room, setRoom] = useState<RaceRoomView | null>(null);
@@ -136,10 +138,11 @@ export function useRaceRoom() {
       setConnection('connecting');
       socket.disconnect().connect();
     },
-    createLearning: (mode: LearningMode) => command<RaceAdmission>(() =>
-      socket.timeout(timeoutMs).emitWithAck('learning:create', mode), admit),
+    createLearning: (mode: TournamentMode) => command<RaceAdmission>(() =>
+      socket.timeout(timeoutMs).emitWithAck('tournament:create',{mode,course}), admit),
+    workshopAct: (action:WorkshopAction) => { if(socket.connected) socket.emit('workshop:act',action); },
     act: (action: LearningAction) => { if (socket.connected) socket.emit('learning:act', action); },
-    create: () => command<RaceAdmission>(() => socket.timeout(timeoutMs).emitWithAck('race:create'), admit),
+    create: () => command<RaceAdmission>(() => socket.timeout(timeoutMs).emitWithAck('tournament:create',{mode:'race',course}), admit),
     join: (code: string) => command<RaceAdmission>(() => socket.timeout(timeoutMs).emitWithAck('race:join', code), admit),
     leave: () => {
       saveSession(null);

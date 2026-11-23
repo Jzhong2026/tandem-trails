@@ -1,4 +1,5 @@
 """Refresh the public Shanghai Air Classroom catalogue in one SQLite transaction."""
+from concurrent.futures import ThreadPoolExecutor
 import json
 import sqlite3
 import time
@@ -8,7 +9,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://www.sh.smartedu.cn/smile-index-service/api/"
 SUBJECTS = {"语文": "chinese", "数学": "math", "英语": "english"}
-GRADES = {f"{v}年级": i for i, v in enumerate("〇一二三四五六") if i >= 2}
+GRADES = {f"{v}年级": i for i, v in enumerate("〇一二三四五六七八九") if i >= 2}
 
 
 def api(route, body):
@@ -33,46 +34,62 @@ def nodes(tree, path=()):
         yield from nodes(item.get("children", []), here)
 
 
-def collect():
-    rows, topics, books = [], [], []
+def editions():
+    terms = {"第一学期": 1, "第二学期": 2, "跨学期": 0}
     for section in api("kzktnew/common/indexPanel", {})["chainList"]:
-        for grade in section["children"]:
-            if grade["name"] not in GRADES:
+        if section["name"] not in ("小学", "初中"):
+            continue
+        for grade_node in section["children"]:
+            grade = GRADES.get(grade_node["name"])
+            if grade is None:
                 continue
-            for term in grade["children"]:
+            for term in grade_node["children"]:
                 for subject in term["children"]:
-                    if subject["name"] not in SUBJECTS:
+                    label = subject["name"]
+                    if grade < 6 and label not in SUBJECTS:
                         continue
                     for edition in subject["children"]:
-                        key = (GRADES[grade["name"]], 1 if term["name"] == "第一学期" else 2,
-                               SUBJECTS[subject["name"]], edition["name"])
-                        ids = dict(sectionId=section["id"], gradeId=grade["id"], subjectId=subject["id"])
-                        tree = api("kzktnew/point/tree", dict(**ids, semesterNo=term["id"], unitId=edition["id"]))
-                        points = list(nodes(tree))
-                        topics.extend((*key, node, " › ".join(path)) for node, path in points)
-                        params = dict(**ids, volumeId=term["id"], editionId=edition["id"],
-                                      isShowNotStudy=0, pointIdList=[], length=30)
-                        entries = {}
-                        page = 1
-                        while True:
-                            result = api("index/kzktNewResource/page", dict(**params, start=page))
-                            for lesson in result["list"]:
-                                entries[lesson["id"]] = lesson["resourceName"].strip()
-                            if page * result["pageSize"] >= int(result["total"]):
-                                break
-                            page += 1
-                        if len(entries) != int(result["total"]) or not points or not entries:
-                            raise ValueError(f"Incomplete published catalogue: {key}, {len(entries)}, {result['total']}")
-                        books.append((*key, len(points), len(entries)))
-                        rows.extend((*key, resource, name, ids["subjectId"]) for resource, name in entries.items())
-                        print(key, len(points), len(entries), flush=True)
-    if len(set(b[:3] for b in books)) != 30:
-        raise ValueError("Expected all 30 grade/semester/subject combinations")
+                        key = (grade, terms[term["name"]], SUBJECTS.get(label, label), edition["name"])
+                        ids = (section["id"], grade_node["id"], subject["id"], term["id"], edition["id"])
+                        yield key, ids
+
+
+def collect_edition(entry):
+    key, (section, grade, subject, term, edition) = entry
+    ids = dict(sectionId=section, gradeId=grade, subjectId=subject)
+    tree = api("kzktnew/point/tree", dict(**ids, semesterNo=term, unitId=edition))
+    topics = [[*key, node, " › ".join(path)] for node, path in nodes(tree)]
+    params = dict(**ids, volumeId=term, editionId=edition, isShowNotStudy=0, pointIdList=[], length=30)
+    lessons = {}
+    page = 1
+    while True:
+        result = api("index/kzktNewResource/page", dict(**params, start=page))
+        total = int(result["total"])
+        for row in result["list"]:
+            lessons[row["id"]] = row["resourceName"].strip()
+        if page * int(result["pageSize"]) >= total:
+            break
+        page += 1
+    if len(lessons) != total:
+        raise ValueError(f"Incomplete course {key}: expected {total}, received {len(lessons)}")
+    return [*key, len(topics), len(lessons)], topics, [[*key, i, name, subject] for i,name in lessons.items()]
+
+
+def collect():
+    books, topics, rows = [], [], []
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        for book, branch, lessons in pool.map(collect_edition, editions()):
+            books.append(book)
+            topics.extend(branch)
+            rows.extend(lessons)
+            print(book, flush=True)
+    expected = {(g, t, s) for g in range(2, 10) for t in (1, 2) for s in SUBJECTS.values()}
+    if not expected.issubset({tuple(b[:3]) for b in books if b[-1] > 0}):
+        raise ValueError("Missing grade, term or core subject")
     return books, topics, rows
 
 
-def main():
-    books, topics, rows = collect()
+def install(books, topics, rows):
     with sqlite3.connect(ROOT / "data" / "shanghai.sqlite") as db:
         db.execute("BEGIN")
         for name in ["book", "topic", "lesson"]:
@@ -87,4 +104,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    install(*collect())

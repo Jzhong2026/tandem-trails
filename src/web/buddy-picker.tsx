@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BODY_DEFAULT_NAME, BUDDY_BODIES, BUDDY_NAME_MAX, BUDDY_SIZES, DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import { BODY_DEFAULT_NAME, BUDDY_BODIES, BUDDY_NAME_MAX, BUDDY_SIZES, DEFAULT_APPEARANCE, sanitizeAppearance } from '../shared/buddy.js';
 import type { Appearance, BuddyBody, BuddySize } from '../shared/buddy.js';
 import type { RoomView, Seat } from '../shared/protocol.js';
 import { SEATS } from '../shared/protocol.js';
@@ -37,17 +37,30 @@ export function BuddyPreview({ appearance, size = 96 }: { appearance: Appearance
   return <canvas className="buddy-preview" style={{ width: size, height: size }} ref={canvas} aria-hidden="true" />;
 }
 
-export function BuddyControls({ appearance, onChange }: { appearance: Appearance; onChange: (next: Appearance) => void }) {
-  const [name, setName] = useState(appearance.name);
-  useEffect(() => { setName(appearance.name); }, [appearance.name]);
-  function commitName() {
-    if (name !== appearance.name) onChange({ ...appearance, name });
+export function BuddyControls({ appearance: confirmed, onChange }: { appearance: Appearance; onChange: (next: Appearance) => void }) {
+  const [pending, setPending] = useState<Appearance | null>(null);
+  const [editedName, setEditedName] = useState<string | null>(null);
+  const appearance = pending ?? confirmed;
+  const name = editedName ?? appearance.name;
+  useEffect(() => {
+    if (pending && pending.body === confirmed.body && pending.size === confirmed.size
+      && pending.palette === confirmed.palette && pending.name === confirmed.name) setPending(null);
+  }, [confirmed, pending]);
+  function select(next: Appearance) {
+    const clean = sanitizeAppearance(next, appearance);
+    setPending(clean);
+    setEditedName(null);
+    onChange(clean);
+  }
+  function commitName(value: string) {
+    if (value !== appearance.name) select({ ...appearance, name: value });
+    else setEditedName(null);
   }
   return <div className="buddy-picker">
     <div className="buddy-row" role="group" aria-label="形象">
       {BUDDY_BODIES.map(body => (
         <button key={body} className="pick-btn" aria-pressed={appearance.body === body}
-          onClick={() => onChange({
+          onClick={() => select({
             ...appearance, body,
             name: name === BODY_DEFAULT_NAME[appearance.body] ? BODY_DEFAULT_NAME[body] : name,
           })}>
@@ -59,21 +72,21 @@ export function BuddyControls({ appearance, onChange }: { appearance: Appearance
       {BUDDY_PALETTES.map((pal, index) => (
         <button key={index} className="pick-swatch" style={{ background: pal.cap }}
           aria-label={`配色 ${index + 1}`} aria-pressed={appearance.palette === index}
-          onClick={() => onChange({ ...appearance, name, palette: index })} />
+          onClick={() => select({ ...appearance, name, palette: index })} />
       ))}
     </div>
     <div className="buddy-row" role="group" aria-label="体型">
       {BUDDY_SIZES.map(size => (
         <button key={size} className="pick-btn" aria-pressed={appearance.size === size}
-          onClick={() => onChange({ ...appearance, name, size })}>
+          onClick={() => select({ ...appearance, name, size })}>
           {SIZE_LABEL[size]}
         </button>
       ))}
     </div>
     <label className="buddy-name">
       <span>名字</span>
-      <input value={name} maxLength={BUDDY_NAME_MAX} onChange={event => setName(event.target.value)}
-        onBlur={commitName} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
+      <input value={name} maxLength={BUDDY_NAME_MAX} onChange={event => setEditedName(event.target.value)}
+        onBlur={event => commitName(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
     </label>
   </div>;
 }

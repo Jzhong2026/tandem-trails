@@ -72,6 +72,18 @@ export function numberGates(track: RaceTrackDef, course:StudyCourse = DEFAULT_CO
     }
     if (course.grade === 6) tasks[2] = course.term===1
       ? {prompt:`(−${a}) × (−${b})`,result:a*b} : {prompt:`${a*20} × 25%`,result:a*5};
+    if (course.grade===7) {
+      tasks[0]=course.term===1 ? {prompt:`x=${a}，2x+3`,result:2*a+3} : {prompt:`x>${a} 的最小整数`,result:a+1};
+      tasks[2]=course.term===1 ? {prompt:`a²×a³ 的次数`,result:5} : {prompt:`顶角 ${2*a*5}°，等腰底角`,result:90-a*5};
+    }
+    if (course.grade===8) {
+      tasks[0]=course.term===1 ? {prompt:`√${a*a}`,result:a} : {prompt:`x=${a}，3x−1`,result:3*a-1};
+      tasks[2]=course.term===1 ? {prompt:`斜边 10，直角边 6，另边`,result:8} : {prompt:`xy=${a*b}，x=${b}，y`,result:a};
+    }
+    if (course.grade===9) {
+      tasks[0]=course.term===1 ? {prompt:`y=(x−${a})² 的顶点横坐标`,result:a} : {prompt:`半径 ${a}，直径`,result:2*a};
+      tasks[2]=course.term===1 ? {prompt:`相似比 1:${b}，面积比 1:?`,result:b*b} : {prompt:`${a}、${a+2}、${a+4} 的中位数`,result:a+2};
+    }
     const task = tasks[index % tasks.length];
     const answerLane = (track.seed + index) % 3;
     const values = [task.result + 2, task.result - 1, task.result + 1];

@@ -1,3 +1,6 @@
+import { WorkshopMatch } from './workshop-match.js';
+import { isWorkshopMode } from '../shared/workshop.js';
+import type { WorkshopAction } from '../shared/workshop.js';
 import { isTruckId } from '../shared/trucks.js';
 import type { TruckId } from '../shared/trucks.js';
 import { DEFAULT_COURSE, validCourse } from '../shared/study.js';
@@ -37,6 +40,7 @@ interface RaceMember {
 export class RaceRoom {
   readonly members: (RaceMember | null)[] = [null, null, null, null];
   private run: RaceRun | null = null;
+  private workshop: WorkshopMatch|null=null;
   private learning: LearningMatch | null = null;
   private seatOrder: RaceSeat[] = [];
   private course = DEFAULT_COURSE;
@@ -166,9 +170,15 @@ export class RaceRoom {
   start(now: number): boolean {
     if (!this.canStart()) return false;
     this.seatOrder = this.presentSeats();
+    const seats=this.seatOrder.map(seat=>({seat,name:this.members[seat]!.name}));
+    if(isWorkshopMode(this.mode)){
+      this.workshop=new WorkshopMatch(this.mode,this.course,seats);
+      this.activeAt=now;
+      return true;
+    }
     const bank=questionsFor(this.course);
     if (this.mode !== 'race') {
-      this.learning = new LearningMatch(this.mode, bank, this.seatOrder.map(seat => ({ seat, name: this.members[seat]!.name })));
+      this.learning = new LearningMatch(this.mode, bank, seats);
       this.activeAt = now;
       return true;
     }
@@ -185,6 +195,11 @@ export class RaceRoom {
     return true;
   }
 
+  workshopAction(seat:RaceSeat,action:WorkshopAction,now:number){
+    if(!this.workshop?.act(seat,action)) return false;
+    this.activeAt=now;
+    return true;
+  }
   learningAction(seat: RaceSeat, action: LearningAction, now: number) {
     if (!this.learning?.act(seat, action)) return false;
     this.activeAt = now;
@@ -219,6 +234,7 @@ export class RaceRoom {
   }
 
   canReplay(): boolean {
+    if (this.workshop) return this.workshop.finished;
     if (this.learning) return this.learning.finished;
     if (!this.run || this.run.status !== 'finished') return false;
     return this.presentSeats().every(other => {
@@ -238,6 +254,7 @@ export class RaceRoom {
       const index = this.playerIndex(seat);
       if (index >= 0) eliminatePlayer(this.run, index);
     }
+    this.workshop?.retire(seat);
     this.learning?.retire(seat);
     this.members[seat] = null;
     if (this.phase === 'lobby') {
@@ -272,11 +289,12 @@ export class RaceRoom {
 
   tick(now: number, steps: number = STEPS_PER_TICK) {
     const run = this.run;
-    if (this.learning) {
+    const sharedMatch=this.workshop ?? this.learning;
+    if (sharedMatch) {
       let changed = false;
       for (const seat of this.seatOrder) {
         const away = this.members[seat]?.disconnectedAt;
-        if (away != null && now - away >= this.reservationMs) changed = this.learning.retire(seat) || changed;
+        if (away != null && now - away >= this.reservationMs) changed = sharedMatch.retire(seat) || changed;
       }
       return changed;
     }
@@ -295,6 +313,7 @@ export class RaceRoom {
   }
 
   get phase(): RacePhase {
+    if (this.workshop) return this.workshop.finished ? 'finished':'playing';
     if (this.learning) return this.learning.finished ? 'finished' : 'playing';
     if (!this.run) return 'lobby';
     if (this.run.status === 'finished') return 'finished';
@@ -306,6 +325,7 @@ export class RaceRoom {
   }
 
   private resetLobby(now: number) {
+    this.workshop = null;
     this.learning = null;
     this.run = null;
     if (!this.members[this.host]) this.host = this.presentSeats()[0] ?? 0;
@@ -330,6 +350,7 @@ export class RaceRoom {
     return {
       course: this.course,
       mode: this.mode,
+      workshop:this.workshop?.view()??null,
       learning: this.learning?.view(seat) ?? null,
       code: this.code,
       phase: this.phase,

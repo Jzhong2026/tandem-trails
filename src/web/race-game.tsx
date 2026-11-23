@@ -3,19 +3,28 @@ import { normalizeRoomCode, validRoomCode } from '../shared/protocol.js';
 import { useRaceRoom } from './use-race-room.js';
 import { RaceAudio } from './race-audio.js';
 import { RaceLobby } from './race-lobby.js';
-import { LEARNING_GAMES, isLearningMode } from '../shared/learning.js';
-import type { LearningMode } from '../shared/learning.js';
+import { isWorkshopMode } from '../shared/workshop.js';
+import type { StudyCourse } from '../shared/study.js';
+import { WorkshopStage } from './workshop-stage.js';
+import { TOURNAMENTS, isTournamentMode, isLearningMode } from '../shared/learning.js';
+import type { TournamentMode } from '../shared/learning.js';
 import { LearningStage } from './learning-stage.js';
 import { RaceStage } from './race-stage.js';
 import './race.css';
 
 interface Props {
+  course:StudyCourse;
+  rememberCourse:(course:StudyCourse)=>void;
   onExit: () => void;
-  initialAction?: 'create' | 'join' | LearningMode;
+  initialAction?: 'create' | 'join' | TournamentMode;
 }
 
-export function RaceGame({ onExit, initialAction }: Props) {
-  const game = useRaceRoom();
+export function RaceGame({ onExit, initialAction,course,rememberCourse }: Props) {
+  const game = useRaceRoom(course);
+  const grade=game.room?.course.grade, term=game.room?.course.term, host=game.seat!==null && game.room?.hostSeat===game.seat;
+  useEffect(()=>{
+    if(host && grade && term) rememberCourse({grade,term});
+  },[host,grade,term,rememberCourse]);
   const audioRef = useRef<RaceAudio | null>(null);
   if (!audioRef.current) audioRef.current = new RaceAudio();
   const audio = audioRef.current;
@@ -33,7 +42,7 @@ export function RaceGame({ onExit, initialAction }: Props) {
     if (validRoomCode(urlCode)) {
       autoDone.current = true;
       void game.join(urlCode);
-    } else if (isLearningMode(initialAction)) {
+    } else if (isTournamentMode(initialAction)) {
       autoDone.current = true;
       void game.createLearning(initialAction);
     } else if (initialAction === 'create') {
@@ -60,13 +69,13 @@ export function RaceGame({ onExit, initialAction }: Props) {
   };
 
   const online = game.connection === 'online';
-  const mode = game.room?.mode ?? (isLearningMode(initialAction) ? initialAction : 'race');
+  const mode = game.room?.mode ?? (isTournamentMode(initialAction) ? initialAction : 'race');
   const me = game.seat !== null ? game.room?.players[game.seat] : null;
 
   return <div className="race">
     <div className="race-shell">
       <div className="race-top">
-        <span className="race-logo"><span className="race-flag" aria-hidden="true" />{mode === 'race' ? <>知识<b>赛车</b></> : LEARNING_GAMES[mode].name}</span>
+        <span className="race-logo"><span className="race-flag" aria-hidden="true" />{mode === 'race' ? <>知识<b>赛车</b></> : TOURNAMENTS[mode].name}</span>
         {game.room && <span className="race-chip live">{game.room.phase === 'lobby' ? '大厅 · 准备中'
           : game.room.phase === 'playing' ? '比赛进行中' : '比赛结束'}</span>}
         <span className="race-top-spacer" />
@@ -86,13 +95,15 @@ export function RaceGame({ onExit, initialAction }: Props) {
       {game.room && game.seat !== null
         ? game.room.phase === 'lobby'
           ? <RaceLobby room={game.room} seat={game.seat} game={game} onExit={exit} />
-          : mode !== 'race' && game.room.learning
+          : isWorkshopMode(mode) && game.room.workshop
+          ? <WorkshopStage view={game.room.workshop} mode={mode} seat={game.seat} game={game} audio={audio}/>
+          : isLearningMode(mode) && game.room.learning
           ? <LearningStage mode={mode} seat={game.seat} view={game.room.learning} game={game} muted={muted} audio={audio}/>
           : <RaceStage room={game.room} seat={game.seat} game={game} audio={audio} onExit={exit} />
         : <div className="race-lobby">
           <div className="race-panel" style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
             <h2>开始一场比赛</h2>
-            <p className="race-assist" style={{ marginTop: 0 }}>一个人练手，或叫上最多 3 位同学各自设备联机。在大厅选择上海二至六年级的语文、数学与英语，看看谁能先冲线！</p>
+            <p className="race-assist" style={{ marginTop: 0 }}>一个人练手，或叫上最多 3 位同学各自设备联机。在大厅选择上海二至九年级的语文、数学与英语，看看谁能先冲线！</p>
             <button className="rbtn primary big" style={{ width: '100%', marginTop: 14 }}
               disabled={!online || game.busy} onClick={() => { audio.unlock(); void game.create(); }}>
               创建比赛（可单人）

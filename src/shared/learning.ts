@@ -1,3 +1,5 @@
+import { WORKSHOP_GAMES, isWorkshopMode } from './workshop.js';
+import type { WorkshopMode } from './workshop.js';
 import type { RaceQuestion } from './race-questions.js';
 export const LEARNING_GAMES = {
   lantern: {
@@ -20,7 +22,12 @@ export const LEARNING_GAMES = {
   },
 } as const;
 export type LearningMode = keyof typeof LEARNING_GAMES;
-export type MatchMode = 'race' | LearningMode;
+export const TOURNAMENTS = { ...LEARNING_GAMES, ...WORKSHOP_GAMES };
+export type TournamentMode = LearningMode | WorkshopMode;
+export type MatchMode = 'race' | TournamentMode;
+export function isTournamentMode(mode: unknown): mode is TournamentMode {
+  return isLearningMode(mode) || isWorkshopMode(mode);
+}
 export function isLearningMode(mode: unknown): mode is LearningMode {
   return typeof mode === 'string' && Object.hasOwn(LEARNING_GAMES, mode);
 }

@@ -1,4 +1,7 @@
 """Build offline original exercises for the Shanghai course catalogue."""
+from study_cards import replace_cards
+import junior_practice
+import junior_subjects
 import json
 import random
 import sqlite3
@@ -244,7 +247,14 @@ Write/a short biography.|撰写/一篇短传记"""
 }
 
 
+WORDS.update({code: "\n".join("|".join(line.split("|")[:2]) for line in text.splitlines())
+              for code,text in junior_practice.READING.items()})
+LINES.update(junior_practice.LINES)
+
+
 def maths(code, n):
+    if code in junior_practice.READING:
+        return junior_practice.maths(code,n)
     a, b = n + 2, 2 * n + 1
     if code == "21":
         return [
@@ -345,6 +355,7 @@ def fmt(number):
 
 def seed():
     rows = []
+    cards = []
     rng = random.Random(2436)
     for code, content in WORDS.items():
         g, t = map(int, code)
@@ -361,14 +372,41 @@ def seed():
             add("chinese","词义辨析",f"“{term}”是什么意思？",meaning,[b for a,b in pairs],f"读词时结合语境理解：{meaning}。")
         lines = [line.split("|") for line in LINES[code].splitlines()]
         for en, cn in lines:
-            sentence, meaning = en.replace("/", " "), cn.replace("/", "")
+            sentence, meaning = " ".join(en.replace("/", " ").split()), cn.replace("/", "")
             add("english","听读与理解",sentence,meaning,[c.replace("/","") for e,c in lines],
                 f"{sentence} 的意思是“{meaning}”。",cn.split("/"))
             add("english","情境表达",f"要表达“{meaning}”，应该说哪句英语？",sentence,
-                [e.replace("/"," ") for e,c in lines],f"可以这样说：{sentence}")
+                [" ".join(e.replace("/"," ").split()) for e,c in lines],f"可以这样说：{sentence}")
         for n in range(2,10):
             for topic, prompt, value, explain in maths(code,n):
-                add("math",topic,prompt,fmt(value),[fmt(value+d) for d in (-5,-2,-1,1,2,5,10) if value+d >= 0],explain)
+                add("math",topic,prompt,fmt(value),[fmt(value+d) for d in (-5,-2,-1,1,2,5,10) if value+d >= 0 or g >= 7],explain)
+        if g >= 7:
+            def card(subject,title,unit,scenes,question):
+                _,_,_,_,_,prompt,options,answer,explanation,_ = question
+                cards.append((f"jr{code}-{len(cards)}",g,t,subject,unit,title,
+                    json.dumps([dict(label=label,say=say,items=items) for label,say,items in scenes],ensure_ascii=False),
+                    prompt,options,answer,explanation,None))
+            for term,meaning,example in (line.split("|") for line in junior_practice.READING[code].splitlines()):
+                add("chinese","阅读与表达",f"读片段：{example} 最适合用哪个术语分析？",term,
+                    [a for a,b in pairs],f"{term}指{meaning}。联系片段里的具体词句说明判断依据。")
+                card("chinese",term,"阅读与表达",[
+                    ("读片段",example,[]),("找证据",f"留意这个特点：{meaning}。指出文中支持判断的词句。",[term]),
+                ],rows[-1])
+            for en,cn in lines:
+                sentence=" ".join(en.replace("/"," ").split())
+                prompt=f"要表达“{cn.replace('/','')}”，应该说哪句英语？"
+                question=next(q for q in reversed(rows) if q[1:3]==(g,t) and q[5]==prompt)
+                card("english",sentence,"听读与表达",[
+                    ("读一读",sentence,en.strip().split("/")),
+                    ("拆解句意","先说清主句的动作，再补全对象、条件或时间。",cn.split("/")),
+                ],question)
+            for i,(topic,example,number,explanation) in enumerate(maths(code,3)):
+                next_prompt=maths(code,5)[i][1]
+                question=next(q for q in reversed(rows) if q[1:3]==(g,t) and q[5]==next_prompt)
+                card("math",topic,"概念与应用",[
+                    ("例题",example,[]),("推理",explanation,[f"例题答案：{fmt(number)}"]),
+                    ("迁移","下面换一组数据。先判断哪些关系保持不变，再列式计算。",[]),
+                ],question)
     # Retain existing textbook exercises when their named lesson occurs in the
     # current Shanghai directory; keep older editions out of the live pool.
     with sqlite3.connect(DB) as db:
@@ -387,6 +425,8 @@ def seed():
                   topic TEXT, prompt TEXT, options TEXT, answer INTEGER, explain TEXT, parts TEXT,
                   UNIQUE(grade,term,subject,prompt))""")
         db.executemany("INSERT INTO question VALUES(?,?,?,?,?,?,?,?,?,?)", rows)
+        replace_cards(db,7,9,cards)
+        junior_subjects.seed(db)
         db.execute("CREATE INDEX question_course ON question(grade,term,subject)")
     print(f"{len(rows)} original practice items")
 

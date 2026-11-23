@@ -1,4 +1,5 @@
 """Refresh offline lessons from a local Course Studio content directory."""
+from study_cards import replace_cards
 import argparse
 import json
 import sqlite3
@@ -29,12 +30,7 @@ def main():
         raise ValueError(f"Course Studio snapshot incomplete: missing {sorted(expected - actual)}")
     with sqlite3.connect(DB) as db:
         db.execute("BEGIN")
-        db.execute("DROP TABLE IF EXISTS study_card")
-        db.execute("""CREATE TABLE study_card(id TEXT PRIMARY KEY, grade INTEGER, term INTEGER,
-                  subject TEXT, unit TEXT, title TEXT, scenes TEXT, prompt TEXT, options TEXT,
-                  answer INTEGER, explain TEXT, resource TEXT)""")
-        db.executemany("INSERT INTO study_card VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", rows)
-        db.execute("CREATE INDEX study_card_book ON study_card(grade,term,subject)")
+        replace_cards(db,2,6,rows)
     print(f"{len(rows)} offline lessons imported")
 
 

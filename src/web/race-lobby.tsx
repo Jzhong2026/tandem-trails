@@ -3,7 +3,8 @@ import { TRUCKS } from '../shared/trucks.js';
 import type { TruckId } from '../shared/trucks.js';
 import { StudyPicker } from './study-picker.js';
 import { TruckGarage } from './truck-garage.js';
-import { LEARNING_GAMES } from '../shared/learning.js';
+import { isWorkshopMode } from '../shared/workshop.js';
+import { TOURNAMENTS } from '../shared/learning.js';
 import { FUEL_MAX } from '../shared/race.js';
 import { RACE_TRACKS } from '../shared/race-tracks.js';
 import { RACE_SEATS } from '../shared/race-protocol.js';
@@ -94,9 +95,9 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
       <div className="race-panel">
         <StudyPicker course={room.course} disabled={disabled || !isHost} change={course=>game.config({course})}/>
         {room.mode !== 'race' ? <div className={`learning-console ${room.mode}`}>
-          <span>{LEARNING_GAMES[room.mode].subject} · 六关挑战</span>
-          <h2>{LEARNING_GAMES[room.mode].name}</h2>
-          <p>{LEARNING_GAMES[room.mode].rule}</p><p>每人完成相同的六关。答对得一分，同分并列，可以给队友分享线索。</p>
+          <span>{TOURNAMENTS[room.mode].subject} · {isWorkshopMode(room.mode)?'四站合力赛':'六关挑战'}</span>
+          <h2>{TOURNAMENTS[room.mode].name}</h2>
+          <p>{TOURNAMENTS[room.mode].rule}</p><p>{isWorkshopMode(room.mode)?'全桌共用棋盘。每站成功，参与操作的选手各得一星，完成检验的选手再得一星。':'每人完成相同的六关。答对得一分，同分并列，可以给队友分享线索。'}</p>
         </div> : <><h2>赛道与规则 {isHost && <span className="race-chip amber">房主设置</span>}</h2>
         <div className="race-tracks">
           {RACE_TRACKS.map(track => <button key={track.id} className="race-track"

@@ -1,4 +1,6 @@
-import { lazy, Suspense, useState } from 'react';
+import { DEFAULT_COURSE, validCourse } from '../shared/study.js';
+import type { StudyCourse } from '../shared/study.js';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import {
   EGG_LEVEL_TITLE, EGG_SUMMARY, EGG_TITLE, EGG2_LEVEL_TITLE, EGG2_SUMMARY, GAME_LEVELS,
   isEggLevel, isMineLevel, isSubLevel, MINE_LEVEL_TITLE, MINE_SUMMARY, MINE_TITLE, MINE2_LEVEL_TITLE, MINE2_SUMMARY,
@@ -26,7 +28,7 @@ import { PaddleButton } from './paddle-button.js';
 import { PauseOverlay } from './pause-overlay.js';
 import { QuestGame } from './quest-game.js';
 import { QuestPreview } from './quest-preview.js';
-import type { LearningMode } from '../shared/learning.js';
+import type { TournamentMode } from '../shared/learning.js';
 import { RaceHome } from './race-home.js';
 import { RiverCanvas } from './river-canvas.js';
 import { SubCanvas } from './sub-canvas.js';
@@ -51,8 +53,25 @@ function courseInfo(level: GameLevel) {
 
 export function App() {
   const game = useRoom();
+  const [course, setCourse] = useState<StudyCourse>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('tandem.study-course') ?? 'null');
+      if (validCourse(saved)) return saved;
+    } catch {
+      // Storage can be unavailable in private browsing.
+    }
+    return DEFAULT_COURSE;
+  });
+  const rememberCourse = useCallback((next: StudyCourse) => {
+    setCourse(old => old.grade === next.grade && old.term === next.term ? old : next);
+    try {
+      localStorage.setItem('tandem.study-course', JSON.stringify(next));
+    } catch {
+      // The selection still applies to this visit.
+    }
+  }, []);
   const [quest, setQuest] = useState<'solo' | 'coop' | null>(null);
-  const [race, setRace] = useState<'create' | 'join' | LearningMode | null>(() =>
+  const [race, setRace] = useState<'create' | 'join' | TournamentMode | null>(() =>
     new URLSearchParams(window.location.search).has('race') ? 'join' : null);
   const [code, setCode] = useState(() => normalizeRoomCode(
     new URLSearchParams(window.location.search).get('room') ?? '',
@@ -80,7 +99,7 @@ export function App() {
       {quest && !game.room
         ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
         : race && !game.room
-        ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame initialAction={race} onExit={() => setRace(null)} /></Suspense>
+        ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame course={course} rememberCourse={rememberCourse} initialAction={race} onExit={() => setRace(null)} /></Suspense>
         : game.room && game.seat
         ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
@@ -92,6 +111,7 @@ export function App() {
                 ? <SubStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
                 : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
         : <>
+          <RaceHome onPlay={setRace} course={course} change={rememberCourse} />
           <div className="quest">
             <section className="quest-hero-home">
               <div className="quest-hero-copy">
@@ -110,9 +130,7 @@ export function App() {
               </div>
               <QuestPreview coop={false} />
             </section>
-            <div className="quest-divider">知识赛车 · 答题竞速</div>
           </div>
-          <RaceHome onPlay={action => setRace(action)} />
           <div className="quest-divider">双人联机 · 双桨救援队</div>
           <section className="home">
             <div className="home-copy">

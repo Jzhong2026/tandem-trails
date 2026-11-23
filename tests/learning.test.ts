@@ -8,14 +8,14 @@ import { SUBJECT_NAMES } from '../src/shared/study.js';
 import type { RaceSubject } from '../src/shared/race-questions.js';
 
 const modes = Object.keys(LEARNING_GAMES) as LearningMode[];
-for (let grade = 2; grade <= 6; grade++)
+for (let grade = 2; grade <= 9; grade++)
   for (const term of [1, 2]) {
     test(`Shanghai course ${grade}/${term} supplies the shelf, race and all three contests`, () => {
       const course = { grade, term };
       const bank = questionsFor(course);
       for (const subject of Object.keys(SUBJECT_NAMES) as RaceSubject[]) {
         const shelf = studyShelf(course, subject);
-        assert.ok(shelf.lessons.length && shelf.topics.length && shelf.edition);
+        assert.ok(shelf.lessons.length && shelf.topics.length && shelf.edition && shelf.cards.length);
         assert.ok(shelf.lessons.every((l) => l.url.startsWith('https://basic.sh.smartedu.cn/')));
         assert.equal(shelf.exercises, bank.filter((q) => q.subject === subject).length);
       }

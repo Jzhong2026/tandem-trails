@@ -1,11 +1,22 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { LEARNING_GAMES } from '../shared/learning.js';
-import type { LearningMode } from '../shared/learning.js';
+import { StudyPicker } from './study-picker.js';
+import type { StudyCourse } from '../shared/study.js';
+import { TOURNAMENTS } from '../shared/learning.js';
+import type { TournamentMode } from '../shared/learning.js';
 import './race.css';
 import './learning.css';
+import './workshop.css';
 const RacePreview = lazy(() => import('./race-preview.js'));
 
-export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join' | LearningMode) => void }) {
+export function RaceHome({
+  onPlay,
+  course,
+  change,
+}: {
+  course: StudyCourse;
+  change: (course: StudyCourse) => void;
+  onPlay: (action: 'create' | 'join' | TournamentMode) => void;
+}) {
   const [playing, setPlaying] = useState(false);
   const preview = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(false);
@@ -37,7 +48,7 @@ export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join' | Lear
           <div className="race-home-facts">
             <span className="race-chip">最多 4 人联机</span>
             <span className="race-chip">3 条主题赛道</span>
-            <span className="race-chip">上海二至六年级 · 语数英</span>
+            <span className="race-chip">上海二至九年级 · 语数英</span>
             <span className="race-chip">错题再挑战</span>
             <span className="race-chip">键盘 / 触屏都能玩</span>
           </div>
@@ -62,9 +73,12 @@ export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join' | Lear
           </figcaption>
         </figure>
       </section>
+      <div className="race-panel home-study">
+        <StudyPicker course={course} disabled={false} change={change} />
+      </div>
       <section className="learning-home" aria-label="多人学习赛">
-        {(Object.keys(LEARNING_GAMES) as LearningMode[]).map((id) => {
-          const info = LEARNING_GAMES[id];
+        {(Object.keys(TOURNAMENTS) as TournamentMode[]).map((id) => {
+          const info = TOURNAMENTS[id];
           return (
             <button key={id} className={`learning-entry ${id}`} onClick={() => onPlay(id)}>
               <small>{info.subject} · 1–4 人</small>

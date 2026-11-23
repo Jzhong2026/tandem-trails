@@ -28,7 +28,11 @@ function LessonReader({ cards }: { cards: StudyCard[] }) {
         </select>
       </label>
       <small>{card.unit}</small>
-      {card.classUrl && <a href={card.classUrl} target="_blank" rel="noreferrer">去上海空中课堂看本课 ↗</a>}
+      {card.classUrl && (
+        <a href={card.classUrl} target="_blank" rel="noreferrer">
+          去上海空中课堂看本课 ↗
+        </a>
+      )}
       {card.scenes.map((s, i) => (
         <section key={i}>
           <strong>{s.label}</strong>
@@ -72,7 +76,10 @@ export function StudyPicker({
   change: (course: StudyCourse) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [subject, setSubject] = useState<RaceSubject>('chinese');
+  const [selection, setSelection] = useState({ ...course, subject: 'chinese' });
+  const subject =
+    selection.grade === course.grade && selection.term === course.term ? selection.subject : 'chinese';
+  const setSubject = (subject: string) => setSelection({ ...course, subject });
   const [shelf, setShelf] = useState<StudyShelf | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -83,7 +90,9 @@ export function StudyPicker({
     setShelf(null);
     setError(false);
     setQuery('');
-    void fetch(`/api/study/${course.grade}/${course.term}/${subject}`, { signal: cancel.signal })
+    void fetch(`/api/study/${course.grade}/${course.term}/${encodeURIComponent(subject)}`, {
+      signal: cancel.signal,
+    })
       .then(async (response) => {
         if (!response.ok) throw Error();
         return (await response.json()) as StudyShelf;
@@ -96,7 +105,7 @@ export function StudyPicker({
       });
     return () => cancel.abort();
   }, [open, course.grade, course.term, subject, retry]);
-  const subjects = Object.keys(SUBJECT_NAMES) as RaceSubject[];
+  const subjects = shelf?.subjects ?? Object.keys(SUBJECT_NAMES);
   return (
     <section className="study-picker">
       <h2>比赛知识范围</h2>
@@ -108,10 +117,17 @@ export function StudyPicker({
             value={course.grade}
             onChange={(e) => change({ ...course, grade: Number(e.target.value) })}
           >
-            {[2, 3, 4, 5, 6].map((g) => (
-              <option key={g} value={g}>
-                {GRADE_NAMES[g]}年级
-              </option>
+            {[
+              [2, 3, 4, 5],
+              [6, 7, 8, 9],
+            ].map((grades, i) => (
+              <optgroup key={i} label={i === 0 ? '小学' : '初中'}>
+                {grades.map((g) => (
+                  <option key={g} value={g}>
+                    {GRADE_NAMES[g]}年级
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
@@ -139,7 +155,7 @@ export function StudyPicker({
                   aria-pressed={s === subject}
                   onClick={() => setSubject(s)}
                 >
-                  {SUBJECT_NAMES[s]}
+                  {SUBJECT_NAMES[s as RaceSubject] ?? s}
                 </button>
               ))}
             </div>
