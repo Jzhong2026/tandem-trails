@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { GAME_TICK_MS } from '../src/shared/game-levels.js';
-import { createRiverRun, stepRiver } from '../src/shared/river.js';
+import { createRiverRun, raftY, stepRiver } from '../src/shared/river.js';
 import type { RiverRun } from '../src/shared/river.js';
+import { RIVER_COURSES } from '../src/shared/river-levels.js';
 
 function paddle(run: RiverRun, ticks: number, left: boolean, right: boolean) {
   for (let i = 0; i < ticks; i++) stepRiver(run, [left, right]);
@@ -108,4 +109,32 @@ test('the other fog flag gives recoverable feedback and only the correct flag ha
   run.y = 200;
   paddle(run, 45, true, true);
   assert.ok(run.finished);
+});
+
+test('bend currents push the boat unless both paddles resist', () => {
+  const idle = createRiverRun('bend');
+  idle.x = 470; idle.y = 200;
+  paddle(idle, 10, false, false);
+  assert.ok(idle.y > 220, `idle drift ${idle.y}`);
+  const held = createRiverRun('bend');
+  held.x = 470; held.y = 200;
+  paddle(held, 10, true, true);
+  assert.equal(held.y, 200);
+  const single = createRiverRun('bend');
+  single.x = 470; single.y = 200;
+  paddle(single, 10, true, false);
+  assert.ok(single.y > 200 && single.y < idle.y, `single drift ${single.y}`);
+});
+
+test('the moving raft collides only at its current height', () => {
+  const raft = RIVER_COURSES.bend.rafts![0];
+  assert.ok(Math.abs(raftY(raft, 5236) - (raft.y - raft.range)) < 1);
+  const hit = createRiverRun('bend');
+  hit.x = raft.x; hit.y = raft.y;
+  paddle(hit, 1, true, true);
+  assert.equal(hit.recovery, 'logs');
+  const miss = createRiverRun('bend');
+  miss.x = raft.x; miss.y = raft.y; miss.elapsedMs = 5236;
+  paddle(miss, 1, true, true);
+  assert.equal(miss.recovery, null);
 });

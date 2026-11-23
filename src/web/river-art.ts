@@ -1,6 +1,7 @@
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
+import { raftY } from '../shared/river.js';
 import { CHAPTER_OUTFIT, paintBuddy, paintNameTag } from './buddy.js';
 import type { Looks } from './panorama-canvas.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
@@ -216,7 +217,48 @@ function paintDuck(ctx: Context, x: number, y: number, size = 1) {
 
 export function paintActors(ctx: Context, run: RiverView, paddles: Paddles, looks: Looks) {
   const seconds = animationSeconds(run.elapsedMs);
-  const duck = RIVER_COURSES[run.level].duck;
+  const course = RIVER_COURSES[run.level];
+  for (const current of course.currents ?? []) {
+    ctx.save();
+    ctx.strokeStyle = '#bfeef5';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const dir = Math.sign(current.pushY);
+    for (let i = 0; i < 5; i++) {
+      const px = current.x - current.rx + (i + 0.5) * (2 * current.rx / 5);
+      const travel = (seconds * 55 + i * 23) % (2 * current.ry);
+      const py = dir > 0 ? current.y - current.ry + travel : current.y + current.ry - travel;
+      ctx.globalAlpha = 0.55 * (1 - Math.abs(py - current.y) / current.ry);
+      ctx.beginPath();
+      ctx.moveTo(px, py - 9 * dir);
+      ctx.lineTo(px, py);
+      ctx.lineTo(px - 4, py - 5 * dir);
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + 4, py - 5 * dir);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  for (const raft of course.rafts ?? []) {
+    const y = raftY(raft, run.elapsedMs);
+    ellipse(ctx, raft.x + 4, y + 6, raft.rx + 9, raft.ry + 7, '#204e4a4f');
+    ctx.save();
+    ctx.translate(raft.x, y);
+    for (const [x, length, angle, color] of [[-14, 78, -0.12, '#774e36'], [8, 84, 0.16, '#916042']] as const) {
+      ctx.save();
+      ctx.translate(x, 0);
+      ctx.rotate(angle);
+      roundRect(ctx, -11, -length / 2, 22, length, 8, color);
+      roundRect(ctx, -6, -length / 2 + 10, 2, length - 20, 1, '#e4b97888');
+      ellipse(ctx, 0, length / 2 - 6, 9, 6, '#c89a61');
+      ellipse(ctx, 0, length / 2 - 6, 4.5, 3, '#966849');
+      ctx.restore();
+    }
+    ellipse(ctx, -18, -20, 5, 4, '#79a862');
+    ellipse(ctx, 14, 16, 5, 4, '#79a862');
+    ctx.restore();
+  }
+  const duck = course.duck;
   if (duck && !run.rescued) {
     const { x, y } = duck;
     ellipse(ctx, x, y, 30, 30, '#f4d77e26');

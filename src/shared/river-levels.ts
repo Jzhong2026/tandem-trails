@@ -12,6 +12,9 @@ export interface FogLayout {
 interface Point { x: number; y: number }
 interface Target extends Point { radius: number }
 
+export interface Current extends Point { rx: number; ry: number; pushY: number }
+export interface Raft extends Point { rx: number; ry: number; range: number; speed: number; phase: number }
+
 interface RiverCourse {
   title: string;
   summary: string;
@@ -19,6 +22,8 @@ interface RiverCourse {
   dock: Target;
   buoys: readonly Point[];
   logs: readonly (Point & { rx: number; ry: number })[];
+  currents?: readonly Current[];
+  rafts?: readonly Raft[];
   checkpoint?: Point;
   duck?: Target;
 }
@@ -53,7 +58,9 @@ export const RIVER_COURSES: Record<RiverLevel, RiverCourse> = {
     start,
     dock: { x: 881, y: 200, radius: 47 },
     buoys: [{ x: 231, y: 263 }, { x: 410, y: 254 }, { x: 510, y: 144 }, { x: 650, y: 144 }],
-    logs: [{ x: 313, y: 129, rx: 47, ry: 76 }, { x: 582, y: 276, rx: 47, ry: 77 }],
+    logs: [{ x: 313, y: 129, rx: 47, ry: 76 }],
+    currents: [{ x: 470, y: 200, rx: 70, ry: 120, pushY: 80 }, { x: 700, y: 200, rx: 60, ry: 120, pushY: -80 }],
+    rafts: [{ x: 582, y: 292, rx: 47, ry: 40, range: 60, speed: 0.9, phase: 0 }],
     checkpoint: { x: 449, y: 230 },
     duck: { x: 741, y: 200, radius: 45 },
   },

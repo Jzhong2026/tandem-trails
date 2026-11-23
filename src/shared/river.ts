@@ -1,6 +1,6 @@
 import { GAME_TICK_MS } from './game-levels.js';
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from './river-levels.js';
-import type { FogLayout, RiverLevel } from './river-levels.js';
+import type { FogLayout, Raft, RiverLevel } from './river-levels.js';
 
 export type Paddles = [left: boolean, right: boolean];
 
@@ -76,6 +76,10 @@ function resetAtCheckpoint(run: RiverRun, reason: 'logs' | 'shoal') {
   run.recovery = reason;
 }
 
+export function raftY(raft: Raft, elapsedMs: number) {
+  return raft.y + Math.sin(elapsedMs / 1000 * raft.speed + raft.phase) * raft.range;
+}
+
 export function stepRiver(run: RiverRun, [left, right]: Paddles) {
   if (run.finished) return;
   run.elapsedMs += GAME_TICK_MS;
@@ -83,6 +87,15 @@ export function stepRiver(run: RiverRun, [left, right]: Paddles) {
     run.recoveryMs = Math.max(0, run.recoveryMs - GAME_TICK_MS);
     if (run.recoveryMs === 0) run.recovery = null;
     return;
+  }
+
+  const course = RIVER_COURSES[run.level];
+  const { banks } = RIVER_SIZE;
+  const resist = left && right ? 1 : left || right ? 0.5 : 0;
+  for (const current of course.currents ?? []) {
+    if (((run.x - current.x) / current.rx) ** 2 + ((run.y - current.y) / current.ry) ** 2 <= 1) {
+      run.y = clamp(run.y + current.pushY * stepSeconds * (1 - resist), banks.top + boatRadius, banks.bottom - boatRadius);
+    }
   }
 
   const learning = run.practice && !run.practice.every(Boolean);
@@ -103,7 +116,6 @@ export function stepRiver(run: RiverRun, [left, right]: Paddles) {
   run.practiceHold = null;
   if (!left || learning) return;
 
-  const course = RIVER_COURSES[run.level];
   // The training boat starts aligned even if one player presses a little early.
   if (run.practice && run.x === course.start.x) run.heading = 0;
   const fog = run.fog;
@@ -111,13 +123,15 @@ export function stepRiver(run: RiverRun, [left, right]: Paddles) {
   const target = !run.rescued && rescue ? rescue : course.dock;
   const distance = 126 * stepSeconds;
   const endX = fog && !fog.shared.every(Boolean) ? FOG_GATE.stagingX : target.x + 19;
-  const { banks } = RIVER_SIZE;
   run.x = Math.min(endX, run.x + distance * Math.cos(run.heading));
   run.y = clamp(run.y + distance * Math.sin(run.heading), banks.top + boatRadius, banks.bottom - boatRadius);
 
   const hitLog = course.logs.some(log =>
     ((run.x - log.x) / (log.rx + boatRadius)) ** 2
-      + ((run.y - log.y) / (log.ry + boatRadius)) ** 2 <= 1);
+      + ((run.y - log.y) / (log.ry + boatRadius)) ** 2 <= 1)
+    || (course.rafts ?? []).some(raft =>
+      ((run.x - raft.x) / (raft.rx + boatRadius)) ** 2
+      + ((run.y - raftY(raft, run.elapsedMs)) / (raft.ry + boatRadius)) ** 2 <= 1);
   if (hitLog) {
     resetAtCheckpoint(run, 'logs');
     return;
