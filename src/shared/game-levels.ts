@@ -1,5 +1,6 @@
 import { nextRiverLevel, RIVER_ORDER } from './river-levels.js';
 import type { RiverLevel } from './river-levels.js';
+import type { Seat } from './protocol.js';
 
 export const GAME_TICK_MS = 1000 / 30;
 export const MINE_ORDER = ['mine', 'mine2'] as const;
@@ -39,6 +40,13 @@ export function isSubLevel(level: unknown): level is SubLevel {
 
 export function usesMovementControls(level: unknown): level is MineLevel | EggLevel | SubLevel {
   return isMineLevel(level) || isEggLevel(level) || isSubLevel(level);
+}
+
+export function seatRoleName(level: GameLevel, seat: Seat): string {
+  if (isMineLevel(level)) return seat === 'left' ? '下层' : '上层';
+  if (isEggLevel(level)) return seat === 'left' ? '左端' : '右端';
+  if (isSubLevel(level)) return seat === 'left' ? '升降驾驶员' : '前进驾驶员';
+  return seat === 'left' ? '左桨' : '右桨';
 }
 
 export function isGameLevel(input: unknown): input is GameLevel {

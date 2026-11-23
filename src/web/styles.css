@@ -135,12 +135,28 @@ input::placeholder { color: #a6b5a7; }
 .invite-top strong { color: var(--ink); font: 730 1.6rem ui-monospace, monospace; letter-spacing: 0.16em; }
 .invite input { font-size: 0.9rem; }
 .assist { font-size: 0.84rem; line-height: 1.6; color: var(--light); margin-top: 8px; }
-.seats { padding: 0; margin: 12px 0 17px; list-style: none; }
-.seats li { display: flex; justify-content: space-between; align-items: center; min-height: 49px; gap: 8px; padding: 0 7px; border-bottom: 1px solid var(--line); }
-.seats li > span:first-child { color: var(--orange); font-weight: 730; }
-.seats li.right > span:first-child { color: var(--mint); }
-.seats li > span:last-child { color: var(--light); font-size: 0.88rem; }
-.seats small { margin-left: 9px; color: var(--light); font-size: 0.77rem; }
+.buddy-seats { padding: 0; margin: 12px 0 17px; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.buddy-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: #ffffff08; }
+.buddy-card.own { border-color: var(--orange); }
+.buddy-card.right.own { border-color: var(--mint); }
+.buddy-card-head { display: flex; gap: 10px; align-items: center; }
+.buddy-preview { flex: none; border-radius: 10px; background: #10281f33; }
+.buddy-card-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.buddy-card-copy strong { color: var(--orange); font-size: 1.02rem; }
+.buddy-card.right .buddy-card-copy strong { color: var(--mint); }
+.buddy-card-copy small { margin-left: 7px; color: var(--light); font-size: 0.77rem; }
+.buddy-role { color: var(--light); font-size: 0.82rem; }
+.buddy-status { color: var(--light); font-size: 0.82rem; }
+.buddy-status.ready { color: var(--mint); font-weight: 700; }
+.buddy-picker { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.buddy-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-btn { font: inherit; font-size: 0.82rem; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--light); cursor: pointer; }
+.pick-btn[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); color: #201409; font-weight: 700; }
+.pick-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.pick-swatch[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--orange); }
+.buddy-name { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--light); }
+.buddy-name input { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #00000030; color: var(--ink); }
+@media (max-width: 640px) { .buddy-seats { grid-template-columns: 1fr; } }
 .room-actions { display: flex; gap: 16px; align-items: center; }
 .course-picker { margin-top: 14px; }
 .course-picker label { display: flex; align-items: center; gap: 12px; color: var(--light); }

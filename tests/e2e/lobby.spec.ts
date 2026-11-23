@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withCoop } from './co-op.js';
 
 test('an invalid room code explains itself while join stays disabled', async ({ page }) => {
   await page.goto('/');
@@ -20,4 +21,25 @@ test('an invalid room code explains itself while join stays disabled', async ({ 
   await expect(hint).toHaveCount(0);
   await expect(input).toHaveAttribute('aria-invalid', 'false');
   await expect(join).toBeEnabled();
+});
+
+test('seats pick their own buddy and both devices see the same look', async ({ browser, baseURL }) => {
+  await withCoop(browser, baseURL, async ({ host, guest }) => {
+    await expect(host.locator('.buddy-card')).toHaveCount(2);
+    await expect(guest.locator('.buddy-card.left strong')).toHaveText('芽芽');
+
+    await host.getByRole('button', { name: '小熊', exact: true }).click();
+    await expect(guest.locator('.buddy-card.left strong')).toHaveText('熊墩墩');
+    await expect(guest.locator('.buddy-card.left .buddy-role')).toContainText('家长 · 大');
+
+    await host.getByRole('button', { name: '孩子 · 小' }).click();
+    await expect(guest.locator('.buddy-card.left .buddy-role')).toContainText('孩子 · 小');
+
+    const name = host.getByLabel('名字');
+    await name.fill('大宝');
+    await name.press('Enter');
+    await expect(guest.locator('.buddy-card.left strong')).toHaveText('大宝');
+
+    expect(await guest.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  });
 });

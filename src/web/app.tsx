@@ -8,12 +8,14 @@ import type { GameLevel } from '../shared/game-levels.js';
 import { createEgg, isEggView } from '../shared/egg.js';
 import { createMine, isMineView } from '../shared/mine.js';
 import { createSub, isSubView } from '../shared/sub.js';
-import { normalizeRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, SEATS, validRoomCode } from '../shared/protocol.js';
+import { normalizeRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, validRoomCode } from '../shared/protocol.js';
 import type { FogClues, RoomView, Seat } from '../shared/protocol.js';
 import { nextRiverLevel, RIVER_COURSES } from '../shared/river-levels.js';
 import type { Channel, Flag } from '../shared/river-levels.js';
 import type { RiverView } from '../shared/river.js';
 import { EggCanvas } from './egg-canvas.js';
+import { BuddySeats } from './buddy-picker.js';
+import { looksOf } from './buddy.js';
 import { EggStage } from './egg-stage.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { MineCanvas } from './mine-canvas.js';
@@ -39,13 +41,6 @@ function courseInfo(level: GameLevel) {
   if (level === 'egg2') return { title: EGG_TITLE, summary: EGG2_SUMMARY, chapter: EGG2_LEVEL_TITLE };
   if (level === 'sub') return { title: SUB_TITLE, summary: SUB_SUMMARY, chapter: SUB_LEVEL_TITLE };
   return { ...RIVER_COURSES[level], chapter: '双桨救援队' };
-}
-
-function roleName(level: GameLevel, seat: Seat) {
-  if (isMineLevel(level)) return seat === 'left' ? '下层' : '上层';
-  if (isEggLevel(level)) return seat === 'left' ? '左端' : '右端';
-  if (isSubLevel(level)) return seat === 'left' ? '升降驾驶员' : '前进驾驶员';
-  return seatName[seat];
 }
 
 export function App() {
@@ -189,16 +184,7 @@ function RoomLobby({ room, seat, game }: { room: RoomView; seat: Seat; game: Gam
         </label> : <p>本轮关卡 <strong>{course.title}</strong></p>}
         <p className="assist">{course.summary}</p>
       </div>
-      <ul className="seats">
-        {SEATS.map(key => {
-          const player = room.players[key];
-          return <li key={key} className={key}>
-            <span>{roleName(room.level, key)}
-              {key === seat && <small>你</small>}</span>
-            <span>{!player ? '等待加入' : !player.online ? '暂时掉线' : player.ready ? '已准备' : '未准备'}</span>
-          </li>;
-        })}
-      </ul>
+      <BuddySeats room={room} seat={seat} game={game} />
       <div className="room-actions">
         <button className="primary" disabled={disabled} onClick={() => game.ready(!ready, room.lobbyRevision)}>
           {ready ? '取消准备' : '我准备好了'}
@@ -230,11 +216,11 @@ function RiverStage({ run, room, seat, game }: { run: RiverView; room: RoomView;
       <progress aria-label="河道进度" max={100} value={progress} />
     </div>
     <div className="stage-scene">
-      <RiverCanvas level={run.level} run={run} paddles={room.paddles}
+      <RiverCanvas level={run.level} run={run} paddles={room.paddles} looks={looksOf(room)}
         channel={clues?.own.kind === 'channel' ? clues.own.value : clues?.channel}
         flag={clues?.own.kind === 'flag' ? clues.own.value : clues?.flag} />
       {room.phase === 'paused' && <PauseOverlay />}
-      {room.phase === 'finished' && <FinishOverlay level={run.level}
+      {room.phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(room)}
         title={run.level === 'practice' ? '练桨完成！' : '小鸭到家了！'}
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 ${run.collisions} 次`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
