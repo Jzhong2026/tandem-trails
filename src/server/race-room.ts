@@ -1,0 +1,325 @@
+import { randomBytes } from 'node:crypto';
+import {
+  advanceQuiz, answerQuiz, changeLane, createRace, eliminatePlayer, FUEL_MAX, IDLE_INPUT,
+  raceProgress, raceStandings, RACE_STEP, stepRace,
+} from '../shared/race.js';
+import type { RacePlayer, RaceRun } from '../shared/race.js';
+import { trackById } from '../shared/race-tracks.js';
+import { RESERVATION_MS } from '../shared/protocol.js';
+import {
+  RACE_MAX_PLAYERS, RACE_SEATS, sanitizeRaceColor, sanitizeRaceName,
+} from '../shared/race-protocol.js';
+import type {
+  RaceAdmission, RaceConfig, RacePhase, RacePlayerView, RaceProfile, RaceQuizView,
+  RaceResultRow, RaceRoomView, RaceSeat, RaceStandings,
+} from '../shared/race-protocol.js';
+
+export const RACE_IDLE_MS = 30 * 60_000;
+const STEPS_PER_TICK = 2;
+
+interface RaceMember {
+  token: string;
+  socketId: string | null;
+  disconnectedAt: number | null;
+  ready: boolean;
+  name: string;
+  color: number;
+}
+
+export class RaceRoom {
+  readonly members: (RaceMember | null)[] = [null, null, null, null];
+  private run: RaceRun | null = null;
+  private seatOrder: RaceSeat[] = [];
+  private trackId = 'campus';
+  private startFuel = 6;
+  private lobbyRevision = 0;
+  private host: RaceSeat = 0;
+  private activeAt: number;
+
+  constructor(
+    readonly code: string,
+    now: number,
+    private readonly idleMs: number = RACE_IDLE_MS,
+    private readonly reservationMs: number = RESERVATION_MS,
+  ) {
+    this.activeAt = now;
+  }
+
+  get hostSeat(): RaceSeat { return this.host; }
+
+  presentSeats(): RaceSeat[] {
+    return RACE_SEATS.filter(seat => this.members[seat] !== null);
+  }
+
+  isEmpty() {
+    return this.presentSeats().length === 0;
+  }
+
+  firstFreeSeat(): RaceSeat | undefined {
+    return RACE_SEATS.find(seat => this.members[seat] === null);
+  }
+
+  admit(seat: RaceSeat, socketId: string, now: number) {
+    this.members[seat] = {
+      token: randomBytes(24).toString('base64url'),
+      socketId, disconnectedAt: null, ready: false,
+      name: `车手 ${seat + 1}`, color: seat,
+    };
+    if (this.presentSeats().length === 1) this.host = seat;
+    this.activeAt = now;
+  }
+
+  seatForToken(token: string): RaceSeat | undefined {
+    return RACE_SEATS.find(seat => this.members[seat]?.token === token);
+  }
+
+  admission(seat: RaceSeat, now: number): RaceAdmission {
+    return { room: this.view(seat, now), seat, token: this.members[seat]!.token };
+  }
+
+  reconnect(seat: RaceSeat, socketId: string, now: number) {
+    const member = this.members[seat]!;
+    member.socketId = socketId;
+    member.disconnectedAt = null;
+    this.activeAt = now;
+  }
+
+  disconnect(seat: RaceSeat, now: number) {
+    const member = this.members[seat];
+    if (!member) return;
+    member.socketId = null;
+    member.disconnectedAt = now;
+    if (!this.run) member.ready = false;
+    this.activeAt = now;
+  }
+
+  expired(now: number) {
+    if (now - this.activeAt >= this.idleMs) return true;
+    const present = this.presentSeats().map(seat => this.members[seat]!);
+    if (present.length === 0) return true;
+    return present.every(member =>
+      member.disconnectedAt !== null && now - member.disconnectedAt >= this.reservationMs);
+  }
+
+  setConfig(config: RaceConfig, now: number): boolean {
+    if (this.run) return false;
+    let changed = false;
+    if (typeof config.trackId === 'string' && trackById(config.trackId).id === config.trackId && config.trackId !== this.trackId) {
+      this.trackId = config.trackId;
+      changed = true;
+    }
+    if (typeof config.startFuel === 'number' && Number.isInteger(config.startFuel)
+      && config.startFuel >= 1 && config.startFuel <= FUEL_MAX && config.startFuel !== this.startFuel) {
+      this.startFuel = config.startFuel;
+      changed = true;
+    }
+    if (changed) this.resetLobby(now);
+    return true;
+  }
+
+  setProfile(seat: RaceSeat, profile: RaceProfile, now: number): boolean {
+    const member = this.members[seat];
+    if (!member) return false;
+    member.name = sanitizeRaceName(profile.name, member.name);
+    const color = sanitizeRaceColor(profile.color, member.color);
+    const taken = this.presentSeats().some(other => other !== seat && this.members[other]!.color === color);
+    if (!taken) member.color = color;
+    this.activeAt = now;
+    return true;
+  }
+
+  ready(seat: RaceSeat, ready: boolean, lobbyRevision: number, now: number): boolean {
+    if (lobbyRevision !== this.lobbyRevision || this.run) return false;
+    const member = this.members[seat];
+    if (!member) return false;
+    member.ready = ready;
+    this.activeAt = now;
+    return true;
+  }
+
+  canStart(): boolean {
+    if (this.run) return false;
+    const present = this.presentSeats();
+    return present.length > 0 && present.every(seat => this.members[seat]!.ready);
+  }
+
+  start(now: number): boolean {
+    if (!this.canStart()) return false;
+    this.seatOrder = this.presentSeats();
+    this.run = createRace({
+      names: this.seatOrder.map(seat => this.members[seat]!.name),
+      colors: this.seatOrder.map(seat => this.members[seat]!.color),
+      trackId: this.trackId,
+      startFuel: this.startFuel,
+      pauseAllOnQuiz: false,
+    });
+    this.activeAt = now;
+    return true;
+  }
+
+  replay(now: number): boolean {
+    if (!this.run || this.run.status !== 'finished') return false;
+    this.resetLobby(now);
+    return true;
+  }
+
+  leave(seat: RaceSeat, now: number) {
+    if (this.run && this.phase === 'playing') {
+      const index = this.playerIndex(seat);
+      if (index >= 0) eliminatePlayer(this.run, index);
+    }
+    this.members[seat] = null;
+    if (!this.run) {
+      this.lobbyRevision++;
+      const present = this.presentSeats();
+      if (!present.includes(this.host)) this.host = present[0] ?? 0;
+      for (const other of present) this.members[other]!.ready = false;
+    }
+    this.activeAt = now;
+  }
+
+  lane(seat: RaceSeat, direction: number, now: number) {
+    if (this.phase !== 'playing' || !this.run) return;
+    const index = this.playerIndex(seat);
+    if (index >= 0 && (direction === -1 || direction === 1)) changeLane(this.run, index, direction);
+    this.activeAt = now;
+  }
+
+  answer(seat: RaceSeat, option: number, now: number) {
+    if (this.phase !== 'playing' || !this.run) return;
+    const index = this.playerIndex(seat);
+    if (index >= 0 && Number.isInteger(option) && option >= 0 && option <= 3) answerQuiz(this.run, index, option);
+    this.activeAt = now;
+  }
+
+  advance(seat: RaceSeat, now: number) {
+    if (this.phase !== 'playing' || !this.run) return;
+    const index = this.playerIndex(seat);
+    if (index >= 0) advanceQuiz(this.run, index);
+    this.activeAt = now;
+  }
+
+  tick(now: number) {
+    const run = this.run;
+    if (!run || this.phase !== 'playing') return;
+    for (const seat of this.seatOrder) {
+      const member = this.members[seat];
+      const index = this.playerIndex(seat);
+      if (member?.disconnectedAt != null && now - member.disconnectedAt >= this.reservationMs && index >= 0) {
+        eliminatePlayer(run, index);
+      }
+    }
+    const inputs = this.seatOrder.map(() => ({ ...IDLE_INPUT }));
+    for (let step = 0; step < STEPS_PER_TICK; step++) stepRace(run, inputs);
+    run.events.length = 0;
+    this.activeAt = now;
+  }
+
+  get phase(): RacePhase {
+    if (!this.run) return 'lobby';
+    if (this.run.status === 'finished') return 'finished';
+    return 'playing';
+  }
+
+  private playerIndex(seat: RaceSeat): number {
+    return this.seatOrder.indexOf(seat);
+  }
+
+  private resetLobby(now: number) {
+    this.run = null;
+    this.seatOrder = [];
+    this.lobbyRevision++;
+    for (const seat of this.presentSeats()) this.members[seat]!.ready = false;
+    this.activeAt = now;
+  }
+
+  view(seat: RaceSeat, now: number): RaceRoomView {
+    const run = this.run;
+    const players = RACE_SEATS.map(other => {
+      const member = this.members[other];
+      if (!member) return null;
+      const index = run ? this.playerIndex(other) : -1;
+      const player = index >= 0 ? run!.players[index] : null;
+      return this.playerView(other, member, player, now);
+    });
+    return {
+      code: this.code,
+      phase: this.phase,
+      trackId: this.trackId,
+      startFuel: this.startFuel,
+      hostSeat: this.host,
+      lobbyRevision: this.lobbyRevision,
+      elapsedMs: run?.elapsedMs ?? 0,
+      countdownMs: run && run.status === 'countdown' ? run.countdownMs : null,
+      players,
+      quiz: this.quizView(seat),
+      standings: this.standingsView(),
+    };
+  }
+
+  private playerView(seat: RaceSeat, member: RaceMember, player: RacePlayer | null, now: number): RacePlayerView {
+    return {
+      seat,
+      name: member.name,
+      color: member.color,
+      online: member.socketId !== null,
+      ready: member.ready,
+      x: player?.x ?? 0,
+      lane: player?.lane ?? 1,
+      fuel: player?.fuel ?? this.startFuel,
+      status: player?.status ?? 'racing',
+      hits: player?.hits ?? 0,
+      correctTotal: player?.correctTotal ?? 0,
+      wrongTotal: player?.wrongTotal ?? 0,
+      stationsCleared: player?.stationsCleared ?? 0,
+      finishMs: player?.finishMs ?? null,
+      progress: player && this.run ? raceProgress(this.run, player) : 0,
+    };
+  }
+
+  private quizView(seat: RaceSeat): RaceQuizView | null {
+    const run = this.run;
+    const index = this.playerIndex(seat);
+    if (!run || index < 0) return null;
+    const player = run.players[index];
+    const quiz = player.quiz;
+    if (player.status !== 'quiz' || !quiz) return null;
+    const question = quiz.questions[quiz.index];
+    return {
+      station: quiz.station,
+      index: quiz.index,
+      total: quiz.questions.length,
+      phase: quiz.phase,
+      subject: question.subject,
+      topic: question.topic,
+      prompt: question.prompt,
+      options: [...question.options],
+      picked: quiz.picked,
+      wasCorrect: quiz.wasCorrect,
+      answer: quiz.phase === 'reveal' ? question.answer : null,
+      explain: quiz.phase === 'reveal' ? question.explain : null,
+      correct: quiz.correct,
+    };
+  }
+
+  private standingsView(): RaceStandings | null {
+    const run = this.run;
+    if (!run || run.status !== 'finished') return null;
+    const row = (player: RacePlayer): RaceResultRow => {
+      const seat = this.seatOrder[run.players.indexOf(player)];
+      return {
+        seat,
+        name: player.name,
+        color: player.color,
+        progress: raceProgress(run, player),
+        correctTotal: player.correctTotal,
+        wrongTotal: player.wrongTotal,
+        hits: player.hits,
+        stationsCleared: player.stationsCleared,
+        finishMs: player.finishMs,
+      };
+    };
+    const standings = raceStandings(run);
+    return { finished: standings.finished.map(row), eliminated: standings.eliminated.map(row) };
+  }
+}

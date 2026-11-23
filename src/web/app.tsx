@@ -26,6 +26,7 @@ import { PaddleButton } from './paddle-button.js';
 import { PauseOverlay } from './pause-overlay.js';
 import { QuestGame } from './quest-game.js';
 import { QuestPreview } from './quest-preview.js';
+import { RaceGame, RaceHome } from './race-game.js';
 import { RiverCanvas } from './river-canvas.js';
 import { SubCanvas } from './sub-canvas.js';
 import { SubStage } from './sub-stage.js';
@@ -48,6 +49,8 @@ function courseInfo(level: GameLevel) {
 export function App() {
   const game = useRoom();
   const [quest, setQuest] = useState<'solo' | 'coop' | null>(null);
+  const [race, setRace] = useState<'create' | 'join' | null>(() =>
+    new URLSearchParams(window.location.search).has('race') ? 'join' : null);
   const [code, setCode] = useState(() => normalizeRoomCode(
     new URLSearchParams(window.location.search).get('room') ?? '',
   ).slice(0, ROOM_CODE_LENGTH));
@@ -73,6 +76,8 @@ export function App() {
       {game.error && <p className="notice" role="alert">{game.error}</p>}
       {quest && !game.room
         ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
+        : race && !game.room
+        ? <RaceGame initialAction={race} onExit={() => setRace(null)} />
         : game.room && game.seat
         ? !game.room.run
           ? <RoomLobby room={game.room} seat={game.seat} game={game} />
@@ -102,8 +107,10 @@ export function App() {
               </div>
               <QuestPreview coop={false} />
             </section>
-            <div className="quest-divider">双人联机 · 双桨救援队</div>
+            <div className="quest-divider">知识赛车 · 答题竞速</div>
           </div>
+          <RaceHome onPlay={action => setRace(action)} />
+          <div className="quest-divider">双人联机 · 双桨救援队</div>
           <section className="home">
             <div className="home-copy">
               <h1>亲子协作<br />大冒险</h1>
