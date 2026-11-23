@@ -11,6 +11,7 @@ import { GAME_TICK_MS, isGameLevel } from '../shared/game-levels.js';
 import { isMovementInput } from '../shared/movement.js';
 import { Room, ROOM_IDLE_MS } from './room.js';
 import { RaceRoom, RACE_IDLE_MS } from './race-room.js';
+import { RACE_STEP } from '../shared/race.js';
 import { RACE_SEATS } from '../shared/race-protocol.js';
 import type {
   RaceClientEvents, RaceConfig, RaceProfile, RaceRespond, RaceRoomView, RaceSeat, RaceServerEvents,
@@ -142,9 +143,20 @@ export function createGameServer({
     socket.join(raceKey(room.code));
   }
 
+  /* 赛车模拟按挂钟补步：定时器被 CPU 挤占时比赛时间仍跟真实时间对齐，
+   * 单 tick 最多补 12 步（200ms），避免积压导致死亡螺旋。 */
+  let raceSimAt = performance.now();
   const clock = setInterval(() => {
     const now = performance.now();
     tickNumber++;
+    const stepMs = RACE_STEP * 1000;
+    let raceSteps = Math.floor((now - raceSimAt) / stepMs);
+    if (raceSteps > 12) {
+      raceSimAt = now - 12 * stepMs;
+      raceSteps = 12;
+    } else {
+      raceSimAt += raceSteps * stepMs;
+    }
     for (const room of rooms.values()) {
       if (room.expired(now, reservationMs)) {
         closeRoom(room, 'expired');
@@ -161,7 +173,7 @@ export function createGameServer({
       if (room.expired(now)) {
         closeRaceRoom(room, 'expired');
       } else if (room.phase === 'playing') {
-        room.tick(now);
+        room.tick(now, raceSteps);
         if (room.phase === 'playing') {
           if (tickNumber % 2 === 0) broadcastRace(room, now, true);
         } else {
@@ -436,7 +448,15 @@ export function createGameServer({
     });
 
     socket.on('race:replay', respond => {
-      updateRaceRoom(respond, (room, _seat, now) => room.replay(now) ? null : 'wrong-phase');
+      updateRaceRoom(respond, (room, seat, now) => {
+        if (!room.canReplay()) return 'review-pending';
+        return room.replay(now) ? null : 'wrong-phase';
+      });
+    });
+
+    socket.on('race:review-done', respond => {
+      updateRaceRoom(respond, (room, seat, now) =>
+        room.markReviewed(seat, now) ? null : 'wrong-phase');
     });
 
     socket.on('race:leave', respond => {

@@ -15,19 +15,19 @@ export interface RaceTrackDef {
 
 export const RACE_TRACKS: RaceTrackDef[] = [
   {
-    id: 'campus', name: '阳光校园线', subtitle: '车速慢 · 障碍稀 · 适合第一次玩',
-    theme: 'day', length: 10000, speed: 130, stations: [2500, 5000, 7500],
-    gap: [340, 520], doubleChance: 0.08, seed: 20260901,
+    id: 'campus', name: '阳光校园线', subtitle: '车速适中 · 障碍较密 · 4 个服务区',
+    theme: 'day', length: 10000, speed: 148, stations: [2200, 4400, 6600, 8800],
+    gap: [250, 390], doubleChance: 0.16, seed: 20260901,
   },
   {
-    id: 'suburb', name: '黄昏郊野线', subtitle: '车速中等 · 偶尔双车道障碍',
-    theme: 'sunset', length: 10800, speed: 150, stations: [2700, 5400, 8100],
-    gap: [300, 460], doubleChance: 0.16, seed: 20260902,
+    id: 'suburb', name: '黄昏郊野线', subtitle: '车速更快 · 常见双车道障碍',
+    theme: 'sunset', length: 11200, speed: 172, stations: [2400, 4800, 7200, 9600],
+    gap: [220, 340], doubleChance: 0.28, seed: 20260902,
   },
   {
-    id: 'canyon', name: '星空峡谷线', subtitle: '车速快 · 障碍密 · 高手挑战',
-    theme: 'night', length: 11600, speed: 170, stations: [2900, 5800, 8700],
-    gap: [260, 420], doubleChance: 0.26, seed: 20260903,
+    id: 'canyon', name: '星空峡谷线', subtitle: '车速最快 · 障碍最密 · 高手挑战',
+    theme: 'night', length: 12400, speed: 198, stations: [2600, 5200, 7800, 10400],
+    gap: [185, 300], doubleChance: 0.36, seed: 20260903,
   },
 ];
 

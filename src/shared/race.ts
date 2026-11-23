@@ -1,5 +1,5 @@
 import { QUESTIONS_PER_STATION, RACE_QUESTIONS } from './race-questions.js';
-import type { RaceQuestion } from './race-questions.js';
+import type { RaceQuestion, RaceSubject } from './race-questions.js';
 import { trackById } from './race-tracks.js';
 import type { RaceTrackDef } from './race-tracks.js';
 
@@ -39,6 +39,19 @@ export interface QuizState {
   wasCorrect: boolean | null;
 }
 
+export interface RaceAnswerRecord {
+  id: string;
+  subject: RaceSubject;
+  topic: string;
+  prompt: string;
+  options: [string, string, string, string];
+  answer: number;
+  picked: number;
+  correct: boolean;
+  explain: string;
+  station: number;
+}
+
 export interface RacePlayer {
   name: string;
   color: number;
@@ -56,6 +69,7 @@ export interface RacePlayer {
   stationsCleared: number;
   finishMs: number | null;
   hitObstacles: number[];
+  answers: RaceAnswerRecord[];
   prevUp: boolean;
   prevDown: boolean;
   lowFuelWarned: boolean;
@@ -176,6 +190,7 @@ export function createRace(options: RaceOptions): RaceRun {
     stationsCleared: 0,
     finishMs: null,
     hitObstacles: [],
+    answers: [],
     prevUp: false,
     prevDown: false,
     lowFuelWarned: false,
@@ -328,6 +343,18 @@ export function answerQuiz(run: RaceRun, index: number, option: number): boolean
   quiz.picked = option;
   quiz.wasCorrect = correct;
   quiz.phase = 'reveal';
+  player.answers.push({
+    id: question.id,
+    subject: question.subject,
+    topic: question.topic,
+    prompt: question.prompt,
+    options: [...question.options] as [string, string, string, string],
+    answer: question.answer,
+    picked: option,
+    correct,
+    explain: question.explain,
+    station: quiz.station,
+  });
   if (correct) {
     quiz.correct++;
     player.correctTotal++;

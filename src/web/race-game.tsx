@@ -6,8 +6,10 @@ import { RaceAudio } from './race-audio.js';
 import { RaceLobby } from './race-lobby.js';
 import { RaceStage } from './race-stage.js';
 import {
-  buildObstacles, buildScenery, CAR_SCREEN_X, CAR_W, laneCenter, RaceParticles, paintRaceFrame, VIEW_HEIGHT,
+  buildObstacles, buildScenery, CAM_BACK, createCamera, RaceParticles, paintRaceFrame2D,
+  paintRaceOverlay, PALETTES, CAR_COLORS,
 } from './race-render.js';
+import { RaceScene } from './race-scene.js';
 import './race.css';
 
 interface Props {
@@ -112,7 +114,7 @@ export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join') => vo
   return <div className="race"><section className="race-home">
     <div className="race-home-copy">
       <h1>知识<br /><em>赛车</em></h1>
-      <p className="lede">二年级上学期的语文数学问答 × 竞速。每进一个服务区答 4 道题，答对加油、撞障碍漏油，油尽淘汰。单人练手，或最多 4 人各自设备联机，顶部实时看到彼此的进度和油箱。</p>
+      <p className="lede">开着 Scania 重卡在纵向赛道上飞驰，每进一个服务区答 4 道题，答对加油、撞障碍漏油，油尽淘汰。赛后要把答错的题复习一遍才能开下一局。单人练手，或最多 4 人各自设备联机，顶部实时看到彼此的进度和油箱。</p>
       <div className="race-home-actions">
         <button className="rbtn primary" onClick={() => onPlay('create')}>单人 / 创建比赛</button>
         <button className="rbtn cyan" onClick={() => onPlay('join')}>加入比赛</button>
@@ -121,6 +123,7 @@ export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join') => vo
         <span className="race-chip">最多 4 人联机</span>
         <span className="race-chip">3 条主题赛道</span>
         <span className="race-chip">95 道课本题</span>
+        <span className="race-chip">赛后错题必复习</span>
         <span className="race-chip">键盘 / 触屏都能玩</span>
       </div>
     </div>
@@ -133,8 +136,10 @@ export function RaceHome({ onPlay }: { onPlay: (action: 'create' | 'join') => vo
 
 function RacePreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
+    const glCanvas = glCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -142,16 +147,28 @@ function RacePreview() {
     const obstacles = buildObstacles(track);
     const scenery = buildScenery(track);
     const particles = new RaceParticles();
+    let scene: RaceScene | null = null;
+    if (glCanvas) {
+      try {
+        scene = new RaceScene(glCanvas, track, obstacles, scenery);
+      } catch {
+        scene = null;
+        glCanvas.style.display = 'none';
+      }
+    }
     let scale = 1;
     let frame = 0;
     let last = 0;
     let x = 0;
     let exhaust = 0;
+    const camera = createCamera(800, 600);
     const observer = new ResizeObserver(([entry]) => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(entry.contentRect.width * dpr));
       canvas.height = Math.max(1, Math.round(entry.contentRect.height * dpr));
-      scale = canvas.height / VIEW_HEIGHT;
+      scale = dpr;
+      Object.assign(camera, createCamera(entry.contentRect.width, entry.contentRect.height));
+      scene?.setSize(entry.contentRect.width, entry.contentRect.height, dpr);
     });
     observer.observe(canvas);
     const draw = (time: number) => {
@@ -159,20 +176,53 @@ function RacePreview() {
       last = time;
       x += track.speed * dt;
       if (x > track.length) x = 0;
-      const lane = Math.floor((Math.sin(x / 420) + 1) / 2 * 2.999);
-      const laneY = lane;
+      const laneY = Math.floor((Math.sin(x / 420) + 1) / 2 * 2.999);
+      let anchor = null as ReturnType<RaceScene['anchors']> | null;
+      if (scene) {
+        scene.render({
+          track, cameraX: x - CAM_BACK, laneY, color: 0, status: 'racing',
+          hitFlash: 0, shake: 0, stationActive: null, time: time / 1000, dt,
+        });
+        anchor = scene.anchors();
+      }
       exhaust += dt;
-      if (exhaust > 0.05) { exhaust = 0; particles.exhaust(x - CAR_W / 2, laneCenter(laneY), true); }
+      if (exhaust > 0.05) {
+        exhaust = 0;
+        particles.exhaust(
+          anchor ? anchor.exhaustX : camera.width / 2 + (laneY - 1) * camera.truckLanePx - 36 * (camera.truckW / 100),
+          anchor ? anchor.exhaustY : camera.truckGroundY - 6, true);
+      }
       particles.update(dt);
       ctx!.setTransform(scale, 0, 0, scale, 0, 0);
-      paintRaceFrame(ctx!, {
-        track, obstacles, scenery, cameraX: x - CAR_SCREEN_X, laneY, color: 0, status: 'racing',
-        hitFlash: 0, boost: true, stationActive: null, time: time / 1000, particles,
-      });
+      if (scene && anchor) {
+        ctx!.clearRect(0, 0, camera.width, camera.height);
+        paintRaceOverlay(ctx!, {
+          width: camera.width, height: camera.height, palette: PALETTES[track.theme], particles,
+          gauge: {
+            x: anchor.roofX, groundY: anchor.groundY, scale: anchor.pxPerM / 40,
+            fuel: 7, fuelMax: 10, roofY: anchor.roofY,
+          },
+          boost: true, shake: 0, hitFlash: 0,
+        });
+      } else {
+        paintRaceFrame2D(ctx!, {
+          track, obstacles, scenery, camera, cameraX: x - CAM_BACK, laneY, color: 0, status: 'racing',
+          hitFlash: 0, boost: true, stationActive: null, time: time / 1000, particles,
+          fuel: 7, fuelMax: 10,
+        });
+      }
       frame = window.requestAnimationFrame(draw);
     };
     frame = window.requestAnimationFrame(draw);
-    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); particles.clear(); };
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      particles.clear();
+      scene?.dispose();
+    };
   }, []);
-  return <canvas ref={canvasRef} role="img" aria-label="知识赛车预览动画" />;
+  return <div className="race-preview-stage">
+    <canvas className="race-gl" ref={glCanvasRef} aria-hidden="true" />
+    <canvas className="race-canvas" ref={canvasRef} role="img" aria-label="知识赛车预览动画" />
+  </div>;
 }

@@ -242,10 +242,34 @@ test('different seeds deal different questions', () => {
   assert.notEqual(idsA, idsB);
 });
 
-test('a full solo loop: three stations then finish, fuel economy holds', () => {
+test('every answer is recorded so the wrong ones can be reviewed later', () => {
+  const run = createRace({ names: ['甲'], startFuel: 6, seed: 7 });
+  skipCountdown(run);
+  const player = run.players[0];
+  player.x = run.track.stations[0] - 1;
+  stepRace(run, idle(1));
+  const quiz = player.quiz!;
+  answerQuiz(run, 0, quiz.questions[0].answer);
+  advanceQuiz(run, 0);
+  const wrong = (quiz.questions[1].answer + 1) % 4;
+  answerQuiz(run, 0, wrong);
+  advanceQuiz(run, 0);
+  assert.equal(player.answers.length, 2);
+  assert.equal(player.answers[0].correct, true);
+  assert.equal(player.answers[1].correct, false);
+  assert.equal(player.answers[1].picked, wrong);
+  assert.equal(player.answers[1].answer, quiz.questions[1].answer);
+  assert.equal(player.answers[1].prompt, quiz.questions[1].prompt);
+  assert.equal(player.answers[1].explain, quiz.questions[1].explain);
+  assert.equal(player.answers[1].station, 0);
+  assert.deepEqual([...player.answers[1].options], [...quiz.questions[1].options]);
+});
+
+test('a full solo loop: every station then finish, fuel economy holds', () => {
   const run = createRace({ names: ['甲'], startFuel: 6, seed: 2026, trackId: 'campus' });
   skipCountdown(run);
   const inputs = idle(1);
+  const stations = run.track.stations.length;
   let guard = 0;
   while (run.status !== 'finished' && guard++ < 60 * 60 * 8) {
     const player = run.players[0];
@@ -265,7 +289,7 @@ test('a full solo loop: three stations then finish, fuel economy holds', () => {
   }
   assert.equal(run.status, 'finished');
   assert.equal(run.players[0].status, 'finished');
-  assert.equal(run.players[0].stationsCleared, 3);
-  assert.equal(run.players[0].correctTotal, 12);
+  assert.equal(run.players[0].stationsCleared, stations);
+  assert.equal(run.players[0].correctTotal, stations * QUESTIONS_PER_STATION);
   assert.ok(run.players[0].fuel >= 1);
 });

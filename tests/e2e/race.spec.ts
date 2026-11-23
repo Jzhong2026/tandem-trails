@@ -12,7 +12,7 @@ async function canvasPainted(page: import('@playwright/test').Page) {
   });
 }
 
-async function answerCurrentQuiz(page: import('@playwright/test').Page) {
+async function answerCurrentQuiz(page: import('@playwright/test').Page, wrong = false) {
   const prompt = (await page.locator('.race-quiz-prompt').textContent())?.trim() ?? '';
   const bank = RACE_QUESTIONS.find(question => question.prompt === prompt);
   if (!bank) throw new Error(`unknown quiz prompt: ${prompt}`);
@@ -22,7 +22,7 @@ async function answerCurrentQuiz(page: import('@playwright/test').Page) {
     return options.findIndex(option => option.querySelector('span:last-child')?.textContent === text);
   }, correctText);
   expect(index).toBeGreaterThanOrEqual(0);
-  await page.locator('.race-opt').nth(index).click();
+  await page.locator('.race-opt').nth(wrong ? (index + 1) % 4 : index).click();
 }
 
 test('solo racer creates a room, answers quizzes and reaches the finish', async ({ page }) => {
@@ -62,9 +62,50 @@ test('solo racer creates a room, answers quizzes and reaches the finish', async 
     await page.waitForTimeout(250);
   }
   expect(finished).toBe(true);
-  expect(quizzesAnswered).toBe(12);
+  expect(quizzesAnswered).toBe(16);
   await expect(page.locator('.race-row.gold')).toContainText('你');
   await expect(page.locator('.race-results')).toContainText('到达终点');
+  expect(errors).toEqual([]);
+});
+
+test('a wrong answer must be reviewed before the next race can start', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  await page.goto('/');
+  await page.getByRole('button', { name: '单人 / 创建比赛' }).click();
+  for (let i = 0; i < 4; i++) {
+    await page.locator('.race-stepper button').nth(1).click();
+    await page.waitForTimeout(160);
+  }
+  await page.getByRole('button', { name: '我准备好了' }).click();
+  await page.getByRole('button', { name: /开始比赛/ }).click();
+
+  const deadline = Date.now() + 150_000;
+  let wrongAnswered = false;
+  while (Date.now() < deadline) {
+    if (await page.locator('.race-review-gate').count()) break;
+    if (await page.locator('.race-opt:not([disabled])').count() === 4) {
+      await answerCurrentQuiz(page, !wrongAnswered);
+      if (!wrongAnswered) wrongAnswered = true;
+      await page.locator('.race-quiz-foot .rbtn').click();
+      continue;
+    }
+    await page.waitForTimeout(250);
+  }
+  expect(wrongAnswered).toBe(true);
+  await expect(page.locator('.race-review-gate')).toContainText('没答对');
+  await expect(page.getByRole('button', { name: '再来一局' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '开始复习错题' }).click();
+  await expect(page.locator('.race-review')).toBeVisible();
+  await answerCurrentQuiz(page);
+  await expect(page.locator('.race-review .race-quiz-reveal')).toBeVisible();
+  await page.getByRole('button', { name: /复习完成/ }).click();
+
+  await expect(page.getByRole('button', { name: '再来一局' })).toBeVisible();
+  await page.getByRole('button', { name: '再来一局' }).click();
+  await expect(page.locator('.race-lobby')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

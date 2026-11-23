@@ -29,13 +29,30 @@ function answerCorrectly(instance: RaceRoom, seat: RaceSeat) {
   instance.answer(seat, index, 0);
 }
 
-function playToCompletion(instance: RaceRoom, seat: RaceSeat) {
+function answerWrongly(instance: RaceRoom, seat: RaceSeat) {
+  const quiz = instance.view(seat, 0).quiz!;
+  const bank = RACE_QUESTIONS.find(question => question.prompt === quiz.prompt);
+  assert.ok(bank, `unknown prompt ${quiz.prompt}`);
+  const correctText = bank.options[bank.answer];
+  const index = quiz.options.indexOf(correctText);
+  assert.ok(index >= 0, 'correct option present');
+  instance.answer(seat, (index + 1) % 4, 0);
+}
+
+function playToCompletion(instance: RaceRoom, seat: RaceSeat, wrongFirst = false) {
   let guard = 0;
+  let missNext = wrongFirst;
   while (instance.phase === 'playing' && guard++ < 60000) {
     const quiz = instance.view(seat, 0).quiz;
     if (quiz) {
-      if (quiz.phase === 'question') answerCorrectly(instance, seat);
-      else instance.advance(seat, 0);
+      if (quiz.phase === 'question') {
+        if (missNext) {
+          answerWrongly(instance, seat);
+          missNext = false;
+        } else {
+          answerCorrectly(instance, seat);
+        }
+      } else instance.advance(seat, 0);
       continue;
     }
     instance.tick(0);
@@ -116,13 +133,48 @@ test('a solo race answers quizzes, refuels and reaches the finish', () => {
   instance.start(0);
   playToCompletion(instance, 0);
   const view = instance.view(0, 0);
+  const stations = view.standings!.finished[0].stationsCleared;
   assert.equal(view.players[0]!.status, 'finished');
-  assert.equal(view.players[0]!.correctTotal, 12);
-  assert.equal(view.players[0]!.stationsCleared, 3);
+  assert.equal(view.players[0]!.correctTotal, stations * 4);
+  assert.equal(view.players[0]!.stationsCleared, stations);
   assert.ok(view.standings);
   assert.equal(view.standings!.finished.length, 1);
   assert.equal(view.standings!.eliminated.length, 0);
   assert.equal(view.quiz, null);
+});
+
+test('the wrong answers are listed for review and the next race waits for it', () => {
+  const instance = joinPlayers(1);
+  instance.setConfig({ startFuel: 10 }, 0);
+  readyAll(instance);
+  instance.start(0);
+  playToCompletion(instance, 0, true);
+
+  const view = instance.view(0, 0);
+  assert.equal(view.review.length, 1, 'one wrong answer to review');
+  const entry = view.review[0];
+  assert.ok(entry.prompt.length > 0);
+  assert.equal(entry.options.length, 4);
+  assert.ok(entry.explain.length > 0);
+  assert.equal(view.reviewDone, false);
+  assert.equal(view.players[0]!.reviewWrong, 1);
+  assert.equal(instance.canReplay(), false, 'replay is blocked until the review is done');
+
+  assert.equal(instance.markReviewed(0, 0), true);
+  assert.equal(instance.view(0, 0).reviewDone, true);
+  assert.equal(instance.canReplay(), true);
+  assert.equal(instance.replay(0), true);
+  assert.equal(instance.phase, 'lobby');
+});
+
+test('a player without wrong answers can start the next race right away', () => {
+  const instance = joinPlayers(1);
+  instance.setConfig({ startFuel: 10 }, 0);
+  readyAll(instance);
+  instance.start(0);
+  playToCompletion(instance, 0);
+  assert.equal(instance.view(0, 0).review.length, 0);
+  assert.equal(instance.canReplay(), true);
 });
 
 test('replay returns to the lobby keeping players', () => {

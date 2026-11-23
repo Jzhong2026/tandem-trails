@@ -17,7 +17,7 @@ export type Seat = typeof SEATS[number];
 export type RoomPhase = 'lobby' | 'playing' | 'paused' | 'finished';
 export type ClosedReason = 'expired' | 'left' | 'replaced';
 export type RoomError = 'bad-code' | 'missing' | 'full' | 'in-room' | 'not-member'
-  | 'expired' | 'busy' | 'wrong-phase' | 'bad-request' | 'host-only';
+  | 'expired' | 'busy' | 'wrong-phase' | 'bad-request' | 'host-only' | 'review-pending';
 
 export interface PlayerView {
   online: boolean;

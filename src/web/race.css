@@ -111,7 +111,12 @@
 
 /* ---------- Scene ---------- */
 .race-scene { position: relative; background: #0d0f15; }
-.race-canvas { display: block; width: 100%; aspect-ratio: 16 / 9; touch-action: none; }
+.race-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.race-preview-stage { position: relative; }
+.race-canvas {
+  position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 74vh;
+  margin: 0 auto; touch-action: none;
+}
 .race-overlay {
   position: absolute; inset: 0; display: grid; place-content: center; justify-items: center;
   gap: 14px; padding: 22px; text-align: center;
@@ -179,6 +184,22 @@
 .race-quiz-fuel { font-weight: 800; font-size: .9rem; color: var(--r-dim); }
 .race-quiz-fuel b { color: var(--r-green); }
 .race-quiz-foot .rbtn { margin-left: auto; }
+
+/* ---------- 错题复习 ---------- */
+.race-review .race-quiz-card { border-color: var(--r-cyan); }
+.race-review .race-quiz-station { color: var(--r-cyan); }
+.race-review-gate {
+  display: grid; gap: 12px; justify-items: center; width: min(560px, 100%);
+  padding: 16px 18px; border-radius: 16px; border: 2px dashed var(--r-cyan);
+  background: #38d6ff14; text-align: center;
+}
+.race-review-gate p { margin: 0; color: var(--r-ink); font-size: .95rem; line-height: 1.6; }
+.race-review-gate b { color: var(--r-cyan); font-size: 1.15rem; }
+.rbtn.amber {
+  background: linear-gradient(160deg, #ffe07a, var(--r-amber)); color: #3a2408;
+  box-shadow: 0 6px 0 #c98a2a, 0 12px 22px #ffc23333;
+}
+.rbtn.amber:active:not(:disabled) { box-shadow: 0 3px 0 #c98a2a; }
 
 /* ---------- Controls ---------- */
 .race-deck { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 11px 18px 13px; }
@@ -290,7 +311,7 @@
 .race-home-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .race-home-facts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
 .race-home-preview { border: 2px solid var(--r-line); border-radius: 20px; overflow: hidden; box-shadow: 0 24px 54px #05070caa; background: #0d0f15; }
-.race-home-preview canvas { display: block; width: 100%; aspect-ratio: 16 / 9; }
+.race-home-preview canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
 .race-home-preview figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px; background: #1e222c; font-size: .82rem; color: var(--r-dim); }
 .race-home-preview figcaption strong { color: var(--r-ink); font-size: .95rem; }
 .race-divider { display: flex; align-items: center; gap: 14px; margin: clamp(30px, 5vh, 54px) 0 20px; color: var(--r-dim); font-size: .84rem; font-weight: 800; }
@@ -312,7 +333,8 @@
   .race-hud { grid-template-columns: 1fr 1fr; gap: 7px; padding: 8px 10px; }
   .race-pcard { padding: 7px 9px; }
   .race-pname { font-size: .8rem; }
-  .race-canvas { aspect-ratio: 4 / 3; }
+  .race-scene { width: 100%; }
+  .race-canvas { aspect-ratio: 3 / 4; max-height: 78vh; }
   .race-quiz-options { grid-template-columns: 1fr; }
   .race-quiz-card { padding: 14px; }
   .race-seats { grid-template-columns: 1fr; }

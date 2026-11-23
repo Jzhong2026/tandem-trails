@@ -23,6 +23,7 @@ const errorMessage: Record<RoomError, string> = {
   'wrong-phase': '房间状态已改变，请根据当前页面继续。',
   'bad-request': '操作没有通过校验，请重试。',
   'host-only': '请让房主在房间里选择关卡。',
+  'review-pending': '请先完成这一轮的内容再继续。',
 };
 
 function loadSession(): Session | null {

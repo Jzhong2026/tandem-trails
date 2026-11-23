@@ -25,6 +25,8 @@ export interface RacePlayerView {
   stationsCleared: number;
   finishMs: number | null;
   progress: number;
+  reviewWrong: number;
+  reviewDone: boolean;
 }
 
 export interface RaceQuizView {
@@ -41,6 +43,18 @@ export interface RaceQuizView {
   answer: number | null;
   explain: string | null;
   correct: number;
+}
+
+export interface RaceReviewEntry {
+  id: string;
+  subject: RaceSubject;
+  topic: string;
+  prompt: string;
+  options: string[];
+  answer: number;
+  picked: number;
+  explain: string;
+  station: number;
 }
 
 export interface RaceResultRow {
@@ -72,6 +86,8 @@ export interface RaceRoomView {
   players: (RacePlayerView | null)[];
   quiz: RaceQuizView | null;
   standings: RaceStandings | null;
+  review: RaceReviewEntry[];
+  reviewDone: boolean;
 }
 
 export interface RaceAdmission {
@@ -107,6 +123,7 @@ export interface RaceClientEvents {
   'race:lane': (direction: number) => void;
   'race:answer': (option: number) => void;
   'race:advance': () => void;
+  'race:review-done': (respond: RaceRespond<RaceRoomView>) => void;
 }
 
 export interface RaceServerEvents {

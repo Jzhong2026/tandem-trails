@@ -11,7 +11,7 @@ import {
 } from '../shared/race-protocol.js';
 import type {
   RaceAdmission, RaceConfig, RacePhase, RacePlayerView, RaceProfile, RaceQuizView,
-  RaceResultRow, RaceRoomView, RaceSeat, RaceStandings,
+  RaceResultRow, RaceReviewEntry, RaceRoomView, RaceSeat, RaceStandings,
 } from '../shared/race-protocol.js';
 
 export const RACE_IDLE_MS = 30 * 60_000;
@@ -24,6 +24,7 @@ interface RaceMember {
   ready: boolean;
   name: string;
   color: number;
+  reviewDone: boolean;
 }
 
 export class RaceRoom {
@@ -63,7 +64,7 @@ export class RaceRoom {
     this.members[seat] = {
       token: randomBytes(24).toString('base64url'),
       socketId, disconnectedAt: null, ready: false,
-      name: `车手 ${seat + 1}`, color: seat,
+      name: `车手 ${seat + 1}`, color: seat, reviewDone: false,
     };
     if (this.presentSeats().length === 1) this.host = seat;
     this.activeAt = now;
@@ -153,8 +154,44 @@ export class RaceRoom {
       startFuel: this.startFuel,
       pauseAllOnQuiz: false,
     });
+    for (const seat of this.seatOrder) this.members[seat]!.reviewDone = false;
     this.activeAt = now;
     return true;
+  }
+
+  reviewList(seat: RaceSeat): RaceReviewEntry[] {
+    const index = this.playerIndex(seat);
+    const player = index >= 0 ? this.run?.players[index] : undefined;
+    if (!player) return [];
+    return player.answers
+      .filter(record => !record.correct)
+      .map(record => ({
+        id: record.id,
+        subject: record.subject,
+        topic: record.topic,
+        prompt: record.prompt,
+        options: [...record.options],
+        answer: record.answer,
+        picked: record.picked,
+        explain: record.explain,
+        station: record.station,
+      }));
+  }
+
+  markReviewed(seat: RaceSeat, now: number): boolean {
+    const member = this.members[seat];
+    if (!member || this.phase !== 'finished') return false;
+    member.reviewDone = true;
+    this.activeAt = now;
+    return true;
+  }
+
+  canReplay(): boolean {
+    if (!this.run || this.run.status !== 'finished') return false;
+    return this.presentSeats().every(other => {
+      if (this.reviewList(other).length === 0) return true;
+      return this.members[other]?.reviewDone === true;
+    });
   }
 
   replay(now: number): boolean {
@@ -199,7 +236,7 @@ export class RaceRoom {
     this.activeAt = now;
   }
 
-  tick(now: number) {
+  tick(now: number, steps: number = STEPS_PER_TICK) {
     const run = this.run;
     if (!run || this.phase !== 'playing') return;
     for (const seat of this.seatOrder) {
@@ -210,7 +247,7 @@ export class RaceRoom {
       }
     }
     const inputs = this.seatOrder.map(() => ({ ...IDLE_INPUT }));
-    for (let step = 0; step < STEPS_PER_TICK; step++) stepRace(run, inputs);
+    for (let step = 0; step < steps; step++) stepRace(run, inputs);
     run.events.length = 0;
     this.activeAt = now;
   }
@@ -229,7 +266,10 @@ export class RaceRoom {
     this.run = null;
     this.seatOrder = [];
     this.lobbyRevision++;
-    for (const seat of this.presentSeats()) this.members[seat]!.ready = false;
+    for (const seat of this.presentSeats()) {
+      this.members[seat]!.ready = false;
+      this.members[seat]!.reviewDone = false;
+    }
     this.activeAt = now;
   }
 
@@ -254,6 +294,8 @@ export class RaceRoom {
       players,
       quiz: this.quizView(seat),
       standings: this.standingsView(),
+      review: this.phase === 'finished' ? this.reviewList(seat) : [],
+      reviewDone: this.members[seat]?.reviewDone ?? true,
     };
   }
 
@@ -274,6 +316,8 @@ export class RaceRoom {
       stationsCleared: player?.stationsCleared ?? 0,
       finishMs: player?.finishMs ?? null,
       progress: player && this.run ? raceProgress(this.run, player) : 0,
+      reviewWrong: player ? player.answers.filter(record => !record.correct).length : 0,
+      reviewDone: member.reviewDone,
     };
   }
 

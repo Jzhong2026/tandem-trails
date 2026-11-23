@@ -19,6 +19,7 @@ const errorMessage: Record<RoomError, string> = {
   'wrong-phase': '房间状态已改变，请根据当前页面继续。',
   'bad-request': '操作没有通过校验，请重试。',
   'host-only': '请让房主来操作。',
+  'review-pending': '请先把本局答错的题复习完，再开始下一局。',
 };
 
 function loadSession(): Session | null {
@@ -135,6 +136,8 @@ export function useRaceRoom() {
       socket.timeout(timeoutMs).emitWithAck('race:ready', ready, lobbyRevision), setRoom),
     start: () => command<RaceRoomView>(() => socket.timeout(timeoutMs).emitWithAck('race:start'), setRoom),
     replay: () => command<RaceRoomView>(() => socket.timeout(timeoutMs).emitWithAck('race:replay'), setRoom),
+    reviewDone: () => command<RaceRoomView>(() =>
+      socket.timeout(timeoutMs).emitWithAck('race:review-done'), setRoom),
     lane: (direction: number) => {
       if (socket.connected) socket.volatile.emit('race:lane', direction);
     },

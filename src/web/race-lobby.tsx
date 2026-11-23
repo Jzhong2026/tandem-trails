@@ -105,6 +105,7 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
           <li><span className="ico" style={{ color: 'var(--r-amber)' }}>－</span><span>每经过一个服务区消耗 <b>3 格油</b>，撞障碍一次漏 <b>1 格油</b>。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-red)' }}>✕</span><span>油箱降到 <b>0</b> 立即淘汰；坚持到终点就是赢家。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-cyan)' }}>↑</span><span>用 <b>↑↓</b> 在三条车道间变道躲障碍，顶部能看到所有人的进度和油量。</span></li>
+          <li><span className="ico" style={{ color: 'var(--r-magenta)' }}>✎</span><span>赛后要把<b>答错的题</b>复习一遍，全桌复习完才能开下一局。</span></li>
         </ul>
       </div>
     </div>

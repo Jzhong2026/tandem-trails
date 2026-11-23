@@ -6,9 +6,12 @@ import type { RaceRoomView, RaceSeat } from '../shared/race-protocol.js';
 import type { RaceGame } from './use-race-room.js';
 import type { RaceAudio } from './race-audio.js';
 import {
-  buildObstacles, buildScenery, CAR_SCREEN_X, CAR_W, laneCenter, RaceParticles, paintRaceFrame,
-  VIEW_HEIGHT, VIEW_WIDTH, CAR_COLORS,
+  buildObstacles, buildScenery, CAM_BACK, createCamera, RaceParticles, paintRaceFrame2D,
+  paintRaceOverlay, PALETTES, CAR_COLORS,
 } from './race-render.js';
+import type { Camera } from './race-render.js';
+import { RaceScene } from './race-scene.js';
+import type { SceneAnchors } from './race-scene.js';
 import { PlayerCard } from './race-hud.js';
 
 interface Props {
@@ -36,13 +39,17 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   const me = room.players[seat];
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
   const roomRef = useRef(room);
   const snapshotAt = useRef(performance.now());
+  const cameraRef = useRef<Camera>(createCamera(800, 600));
   const display = useRef<Display>({ x: 0, laneY: 1, hitFlash: 0, shake: 0, exhaustClock: 0, smokeClock: 0 });
   const prev = useRef<Prev>({ hits: 0, fuel: room.startFuel, status: 'racing', quizPhase: null, countdown: null });
   const particles = useRef(new RaceParticles());
   const [spectating, setSpectating] = useState(false);
   const [marks, setMarks] = useState<Record<number, boolean>>({});
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  const [reviewPick, setReviewPick] = useState<number | null>(null);
   const [touch, setTouch] = useState(() => window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760);
   const [pressed, setPressed] = useState<Record<string, boolean>>({});
 
@@ -54,6 +61,20 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   useEffect(() => {
     if (room.phase === 'finished' || room.phase === 'lobby') setSpectating(false);
   }, [room.phase]);
+
+  useEffect(() => {
+    if (room.phase !== 'finished') {
+      setReviewIndex(null);
+      setReviewPick(null);
+    }
+  }, [room.phase]);
+
+  useEffect(() => {
+    if (room.reviewDone) {
+      setReviewIndex(null);
+      setReviewPick(null);
+    }
+  }, [room.reviewDone]);
 
   useEffect(() => {
     const quiz = room.quiz;
@@ -85,9 +106,20 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const glCanvas = glCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    let scene: RaceScene | null = null;
+    if (glCanvas) {
+      try {
+        scene = new RaceScene(glCanvas, track, obstacles, scenery);
+        scene.setPlayerNumber((roomRef.current.players[seat]?.color ?? seat) + 1);
+      } catch {
+        scene = null;
+        glCanvas.style.display = 'none';
+      }
+    }
     let scale = 1;
     let frame = 0;
     let last = 0;
@@ -96,7 +128,9 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(entry.contentRect.width * dpr));
       canvas.height = Math.max(1, Math.round(entry.contentRect.height * dpr));
-      scale = canvas.height / VIEW_HEIGHT;
+      scale = dpr;
+      cameraRef.current = createCamera(entry.contentRect.width, entry.contentRect.height);
+      scene?.setSize(entry.contentRect.width, entry.contentRect.height, dpr);
     });
     observer.observe(canvas);
 
@@ -107,22 +141,57 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       const player = current.players[seat];
       const d = display.current;
       const p = prev.current;
-      const carY = laneCenter(d.laneY);
+      const cam = cameraRef.current;
+      const status = player?.status ?? 'racing';
+      const color = player?.color ?? seat;
+
+      if (player) {
+        if (status === 'racing') {
+          const age = Math.min(0.12, (performance.now() - snapshotAt.current) / 1000);
+          const target = player.x + track.speed * age;
+          d.x += (target - d.x) * Math.min(1, dt * 14);
+        } else {
+          d.x += (player.x - d.x) * Math.min(1, dt * 10);
+        }
+        d.laneY += (player.lane - d.laneY) * Math.min(1, dt * 11);
+      }
+
+      let anchor: SceneAnchors | null = null;
+      if (scene) {
+        scene.render({
+          track, cameraX: d.x - CAM_BACK, laneY: d.laneY, color, status,
+          hitFlash: d.hitFlash, shake: d.shake, stationActive: current.quiz?.station ?? null,
+          time: time / 1000, dt,
+        });
+        anchor = scene.anchors();
+      }
+      const truckScale = cam.truckW / 100;
+      const truckX = anchor ? anchor.hitX : cam.width / 2 + (d.laneY - 1) * cam.truckLanePx;
+      const truckY = anchor ? anchor.hitY : cam.truckGroundY - 70 * truckScale;
+      const exhaustX = anchor ? anchor.exhaustX : truckX - 36 * truckScale;
+      const exhaustY = anchor ? anchor.exhaustY : cam.truckGroundY - 6;
+      const roofX = anchor ? anchor.roofX : truckX;
+      const roofY = anchor ? anchor.roofY : cam.truckGroundY - 150 * truckScale;
 
       if (player) {
         if (player.hits > p.hits) {
           d.hitFlash = 1; d.shake = 1;
-          particles.current.burst(d.x, carY, '#ff4d4d', 18);
-          particles.current.burst(d.x, carY, '#ffc233', 8);
+          particles.current.burst(truckX, truckY, '#ff4d4d', 18);
+          particles.current.burst(truckX, truckY, '#ffc233', 8);
           audio.play('hit');
         }
-        if (player.fuel > p.fuel) particles.current.refuel(d.x, carY - 30);
+        if (player.fuel > p.fuel) particles.current.refuel(roofX, roofY);
         if (player.status !== p.status) {
           if (player.status === 'quiz') audio.play('station');
-          if (player.status === 'eliminated') { audio.play('eliminated'); particles.current.burst(d.x, carY, '#9aa3b5', 24, 'smoke'); }
+          if (player.status === 'eliminated') {
+            audio.play('eliminated');
+            particles.current.burst(exhaustX, exhaustY, '#9aa3b5', 24, 'smoke');
+          }
           if (player.status === 'finished') {
             audio.play('finish');
-            for (const color of CAR_COLORS) particles.current.burst(d.x, carY - 20, color, 16, 'confetti');
+            for (const confetti of CAR_COLORS) {
+              particles.current.burst(roofX, roofY, confetti, 16, 'confetti');
+            }
           }
         }
         const quiz = current.quiz;
@@ -132,24 +201,21 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
         if (cdNum == null && p.countdown != null) audio.play('go');
         prev.current = { hits: player.hits, fuel: player.fuel, status: player.status, quizPhase: quiz?.phase ?? null, countdown: cdNum };
 
-        if (player.status === 'racing') {
-          const age = Math.min(0.12, (performance.now() - snapshotAt.current) / 1000);
-          const target = player.x + track.speed * age;
-          d.x += (target - d.x) * Math.min(1, dt * 14);
-          d.laneY += (player.lane - d.laneY) * Math.min(1, dt * 11);
+        if (status === 'racing') {
           d.exhaustClock += dt;
-          if (d.exhaustClock > 0.045) {
+          if (d.exhaustClock > 0.05) {
             d.exhaustClock = 0;
-            particles.current.exhaust(d.x - CAR_W / 2, carY + (Math.random() - 0.5) * 16, true);
+            particles.current.exhaust(exhaustX, exhaustY, true);
           }
           audio.setEngineIntensity(1);
         } else {
-          d.x += (player.x - d.x) * Math.min(1, dt * 10);
-          d.laneY += (player.lane - d.laneY) * Math.min(1, dt * 11);
-          audio.setEngineIntensity(player.status === 'quiz' ? 0.25 : 0);
-          if (player.status === 'eliminated') {
+          audio.setEngineIntensity(status === 'quiz' ? 0.25 : 0);
+          if (status === 'eliminated') {
             d.smokeClock += dt;
-            if (d.smokeClock > 0.12) { d.smokeClock = 0; particles.current.exhaust(d.x - 10, carY - 10, false); }
+            if (d.smokeClock > 0.12) {
+              d.smokeClock = 0;
+              particles.current.exhaust(exhaustX, exhaustY - 20, false);
+            }
           }
         }
         d.hitFlash = Math.max(0, d.hitFlash - dt * 2.2);
@@ -157,25 +223,75 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
       }
 
       particles.current.update(dt);
-      const cameraX = d.x - CAR_SCREEN_X;
-      ctx!.setTransform(scale, 0, 0, scale, 0, 0);
-      if (d.shake > 0) ctx!.translate((Math.random() - 0.5) * d.shake * 9, (Math.random() - 0.5) * d.shake * 9);
-      paintRaceFrame(ctx!, {
-        track, obstacles, scenery, cameraX,
-        laneY: d.laneY, color: player?.color ?? seat, status: player?.status ?? 'racing',
-        hitFlash: d.hitFlash, boost: player?.status === 'racing',
-        stationActive: current.quiz?.station ?? null, time: time / 1000, particles: particles.current,
-      });
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      if (scene && anchor) {
+        ctx.clearRect(0, 0, cam.width, cam.height);
+        paintRaceOverlay(ctx, {
+          width: cam.width, height: cam.height, palette: PALETTES[track.theme],
+          particles: particles.current,
+          gauge: {
+            x: anchor.roofX, groundY: anchor.groundY, scale: anchor.pxPerM / 40,
+            fuel: player?.fuel ?? room.startFuel, fuelMax: FUEL_MAX, roofY: anchor.roofY,
+          },
+          boost: status === 'racing', shake: d.shake, hitFlash: d.hitFlash,
+        });
+      } else {
+        if (d.shake > 0) ctx.translate((Math.random() - 0.5) * d.shake * 9, (Math.random() - 0.5) * d.shake * 9);
+        paintRaceFrame2D(ctx, {
+          track, obstacles, scenery, camera: cam, cameraX: d.x - CAM_BACK,
+          laneY: d.laneY, color, status, hitFlash: d.hitFlash, boost: status === 'racing',
+          stationActive: current.quiz?.station ?? null, time: time / 1000, particles: particles.current,
+          fuel: player?.fuel ?? room.startFuel, fuelMax: FUEL_MAX,
+        });
+      }
       frame = window.requestAnimationFrame(draw);
     };
     frame = window.requestAnimationFrame(draw);
-    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); particles.current.clear(); };
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      particles.current.clear();
+      scene?.dispose();
+    };
   }, [track, obstacles, scenery, seat, audio]);
+
+  const review = room.review ?? [];
+  const reviewEntry = reviewIndex != null ? review[reviewIndex] : undefined;
+  const pendingReview = room.phase === 'finished' && review.length > 0 && !room.reviewDone;
+
+  const pickReview = (option: number) => {
+    if (reviewEntry && reviewPick === null) {
+      setReviewPick(option);
+      audio.unlock();
+      audio.play(option === reviewEntry.answer ? 'correct' : 'wrong');
+    }
+  };
+
+  const finishReview = () => {
+    setReviewPick(null);
+    if (reviewIndex != null && reviewIndex >= review.length - 1) {
+      void game.reviewDone();
+    } else {
+      setReviewIndex((current) => (current == null ? null : current + 1));
+    }
+  };
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       const current = roomRef.current;
       const player = current.players[seat];
+      if (reviewEntry) {
+        if (reviewPick === null) {
+          const digit = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
+          const numpad = ['Numpad1', 'Numpad2', 'Numpad3', 'Numpad4'].indexOf(event.code);
+          const option = digit >= 0 ? digit : numpad;
+          if (option >= 0) { event.preventDefault(); pickReview(option); }
+        } else if (event.code === 'Enter' || event.code === 'Space') {
+          event.preventDefault();
+          finishReview();
+        }
+        return;
+      }
       const quiz = current.quiz;
       if (quiz && player?.status === 'quiz') {
         if (quiz.phase === 'question') {
@@ -198,7 +314,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
     };
     window.addEventListener('keydown', down);
     return () => window.removeEventListener('keydown', down);
-  }, [seat, game, audio]);
+  }, [seat, game, audio, reviewEntry, reviewPick, reviewIndex]);
 
   const pad = (direction: number) => {
     const id = direction < 0 ? 'up' : 'down';
@@ -218,7 +334,6 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   };
 
   const present = room.players.filter((player): player is NonNullable<typeof player> => player !== null);
-  const stationFractions = track.stations.map(s => s / track.length);
   const quiz = room.quiz;
   const countdownNum = room.countdownMs != null ? Math.ceil(room.countdownMs / 1000) : null;
   const showGo = room.countdownMs == null && room.phase === 'playing' && room.elapsedMs < 850;
@@ -226,6 +341,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
   const showResults = room.phase === 'finished' && room.standings;
   const showOut = !showResults && !spectating && myStatus === 'eliminated';
   const showDone = !showResults && !spectating && myStatus === 'finished';
+  const othersPending = present.filter(player => player.seat !== seat && player.reviewWrong > 0 && !player.reviewDone);
 
   return <section className="race-play">
     <div className="race-hud">
@@ -234,6 +350,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
     </div>
 
     <div className="race-scene">
+      <canvas className="race-gl" ref={glCanvasRef} aria-hidden="true" />
       <canvas className="race-canvas" ref={canvasRef} role="img" aria-label={`${track.name} 赛车画面`} />
 
       {(countdownNum != null || showGo) && !quiz && <div className="race-overlay">
@@ -280,9 +397,48 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
         </div>
       </div>}
 
+      {reviewEntry && <div className="race-quiz race-review">
+        <div className="race-quiz-card">
+          <div className="race-quiz-top">
+            <span className="race-quiz-station">错题复习 · 第 {(reviewIndex ?? 0) + 1}/{review.length} 题</span>
+            <span className={`race-quiz-subject ${reviewEntry.subject}`}>{reviewEntry.subject === 'chinese' ? '语文' : '数学'}</span>
+            <span className="race-chip">{reviewEntry.topic}</span>
+            <span className="race-quiz-dots">
+              {review.map((entry, i) => {
+                const cls = i < (reviewIndex ?? 0) ? 'done' : i === reviewIndex ? 'now' : '';
+                return <span key={entry.id} className={cls} />;
+              })}
+            </span>
+          </div>
+          <p className="race-quiz-prompt">{reviewEntry.prompt}</p>
+          <div className="race-quiz-options">
+            {reviewEntry.options.map((option, i) => {
+              const reveal = reviewPick !== null;
+              const cls = reveal ? (i === reviewEntry.answer ? 'correct' : i === reviewPick ? 'wrong' : '') : '';
+              return <button key={i} className={`race-opt ${cls}`} disabled={reveal}
+                onClick={() => pickReview(i)}>
+                <span className="key">{OPTION_KEYS[i]}</span><span>{option}</span>
+              </button>;
+            })}
+          </div>
+          {reviewPick !== null && <div className={`race-quiz-reveal ${reviewPick === reviewEntry.answer ? 'good' : 'bad'}`}>
+            <div className="race-quiz-verdict">
+              {reviewPick === reviewEntry.answer ? '这次答对了！' : `再记一记，正确答案是 ${OPTION_KEYS[reviewEntry.answer]}`}
+            </div>
+            <p className="race-quiz-explain">{reviewEntry.explain}</p>
+          </div>}
+          <div className="race-quiz-foot">
+            <span className="race-quiz-fuel">这局这道题你原来答错了，复习完才能开始下一局。</span>
+            {reviewPick !== null && <button className="rbtn primary" onClick={finishReview}>
+              {(reviewIndex ?? 0) + 1 < review.length ? '下一题 →' : '复习完成'}
+            </button>}
+          </div>
+        </div>
+      </div>}
+
       {showOut && <div className="race-overlay">
         <h2>燃油耗尽，被淘汰了</h2>
-        <p>答对 {me?.correctTotal ?? 0} 题 · 碰撞 {me?.hits ?? 0} 次 · 跑完全程的 {Math.round((me?.progress ?? 0) * 100)}%。<br />别灰心，下次多答对几道题就能跑得更远！</p>
+        <p>答对 {me?.correctTotal ?? 0} 题 · 碰撞 {me?.hits ?? 0} 次 · 跑完全程的 {Math.round((me?.progress ?? 0) * 100)}%。<br />别灰心，赛后还能把答错的题重新学一遍！</p>
         <div className="actions">
           <button className="rbtn primary" onClick={() => setSpectating(true)}>继续观战</button>
           <button className="rbtn ghost" onClick={onExit}>退出比赛</button>
@@ -298,7 +454,7 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
         </div>
       </div>}
 
-      {showResults && <div className="race-overlay">
+      {showResults && !reviewEntry && <div className="race-overlay">
         <h2>{room.standings!.finished.some(row => row.seat === seat) ? '比赛结束 · 你完赛了！' : '比赛结束'}</h2>
         <div className="race-results">
           {room.standings!.finished.length > 0 && <div>
@@ -324,14 +480,23 @@ export function RaceStage({ room, seat, game, audio, onExit }: Props) {
             </div>
           </div>}
         </div>
-        <div className="actions">
+        {pendingReview && <div className="race-review-gate">
+          <p>本局有 <b>{review.length}</b> 道题没答对，先把它们复习一遍才能开下一局。</p>
+          <button className="rbtn amber big" onClick={() => { setReviewIndex(0); setReviewPick(null); }}>
+            开始复习错题
+          </button>
+        </div>}
+        {!pendingReview && <div className="actions">
           <button className="rbtn primary" onClick={() => { audio.unlock(); game.replay(); }}>再来一局</button>
           <button className="rbtn ghost" onClick={onExit}>退出比赛</button>
-        </div>
+        </div>}
+        {othersPending.length > 0 && <p className="race-assist">
+          等 {othersPending.map(player => player.name).join('、')} 复习完就能开始下一局。
+        </p>}
       </div>}
     </div>
 
-    <p className="race-hint"><b>玩法：</b>↑↓ 变道躲障碍，撞一次漏 1 格油；进服务区答 4 题，答对 +1 格，出站扣 3 格；油尽淘汰，先到终点获胜。当前赛道 {track.name}。</p>
+    <p className="race-hint"><b>玩法：</b>↑↓ 变道躲障碍，撞一次漏 1 格油；进服务区答 4 题，答对 +1 格，出站扣 3 格；油尽淘汰，先到终点获胜。赛后要把答错的题复习一遍才能再来一局。当前赛道 {track.name}。</p>
 
     {touch ? <div className="race-pads">
       <button className="race-pad up" aria-label="向上变道" {...pad(-1)}>▲<small>上变道 (W / ↑)</small></button>
