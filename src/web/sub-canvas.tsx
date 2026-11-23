@@ -1,4 +1,4 @@
-import { createSub, SUB } from '../shared/sub.js';
+import { createSub, SUB, tentacleOpen } from '../shared/sub.js';
 import type { SubView } from '../shared/sub.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
@@ -304,6 +304,49 @@ function paintRun(ctx: Context, run: SubView, seat: Seat, looks: Looks) {
     if (!run.bubbles[index]) airBubble(ctx, bubble.x, bubble.y, seconds, index);
   });
   if (!run.rescued) seahorse(ctx, SUB.seahorse.x, SUB.seahorse.y, seconds);
+  for (const current of SUB.currents) {
+    ctx.save();
+    ctx.strokeStyle = '#bfeef5';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const horizontal = current.pushX !== 0;
+    const dir = Math.sign(horizontal ? current.pushX : current.pushY);
+    const span = horizontal ? current.rx : current.ry;
+    for (let i = 0; i < 5; i++) {
+      const lane = (i + 0.5) / 5;
+      const travel = (seconds * 55 + i * 23) % (2 * span);
+      const px = horizontal ? (dir > 0 ? current.x - span + travel : current.x + span - travel) : current.x - current.rx + lane * 2 * current.rx;
+      const py = horizontal ? current.y - current.ry + lane * 2 * current.ry : (dir > 0 ? current.y - span + travel : current.y + span - travel);
+      ctx.globalAlpha = 0.5 * (1 - Math.abs(horizontal ? px - current.x : py - current.y) / span);
+      ctx.beginPath();
+      if (horizontal) {
+        ctx.moveTo(px - 9 * dir, py); ctx.lineTo(px, py);
+        ctx.lineTo(px - 5 * dir, py - 4); ctx.moveTo(px, py); ctx.lineTo(px - 5 * dir, py + 4);
+      } else {
+        ctx.moveTo(px, py - 9 * dir); ctx.lineTo(px, py);
+        ctx.lineTo(px - 4, py - 5 * dir); ctx.moveTo(px, py); ctx.lineTo(px + 4, py - 5 * dir);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const reach = tentacleOpen(run.elapsedMs) ? 26 : 150;
+  ctx.save();
+  ctx.strokeStyle = '#e88a6a';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    for (const offset of [-10, 0, 10]) {
+      const sway = Math.sin(seconds * 3 + offset) * 6;
+      const root = side < 0 ? SUB.surface : SUB.seabed;
+      const tip = side < 0 ? SUB.surface + reach : SUB.seabed - reach;
+      ctx.beginPath();
+      ctx.moveTo(SUB.tentacle.x + offset, root);
+      ctx.quadraticCurveTo(SUB.tentacle.x + offset + sway, (root + tip) / 2, SUB.tentacle.x + offset + sway * 1.6, tip);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
   submarine(ctx, run, seat, seconds, looks);
 }
 

@@ -24,6 +24,11 @@ export const SUB = {
   bubbleRadius: 34,
   seahorse: { x: 790, y: 212, radius: 42 },
   buoys: [{ x: 200, y: 200 }, { x: 430, y: 200 }, { x: 620, y: 200 }],
+  currents: [
+    { x: 430, y: 210, rx: 80, ry: 90, pushX: 70, pushY: 0 },
+    { x: 640, y: 150, rx: 70, ry: 80, pushX: 0, pushY: 60 },
+  ],
+  tentacle: { x: 760, y: 200, rx: 18, ry: 160, periodMs: 3200, openMs: 1400 },
 } as const;
 
 export interface SubView {
@@ -63,6 +68,10 @@ export function isSubView(run: { level: string } | null | undefined): run is Sub
 
 const seconds = GAME_TICK_MS / 1000;
 
+export function tentacleOpen(elapsedMs: number) {
+  return elapsedMs % SUB.tentacle.periodMs < SUB.tentacle.openMs;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -84,10 +93,19 @@ export function stepSub(run: SubView, inputs: MovementInputs) {
   const thrust = movementDirection(inputs.right);
   run.x = clamp(run.x + thrust * SUB.cruiseSpeed * seconds, 60, SUB.width - 40);
   run.y = clamp(run.y + dive * SUB.diveSpeed * seconds, SUB.surface + SUB.radius, SUB.seabed - SUB.radius);
+  for (const current of SUB.currents) {
+    if (((run.x - current.x) / current.rx) ** 2 + ((run.y - current.y) / current.ry) ** 2 <= 1) {
+      run.x = clamp(run.x + current.pushX * seconds * (thrust === 0 ? 1 : 0), 60, SUB.width - 40);
+      run.y = clamp(run.y + current.pushY * seconds * (dive === 0 ? 1 : 0), SUB.surface + SUB.radius, SUB.seabed - SUB.radius);
+    }
+  }
 
   const hitReef = SUB.reefs.some(reef =>
     ((run.x - reef.x) / (reef.rx + SUB.radius)) ** 2
-    + ((run.y - reef.y) / (reef.ry + SUB.radius)) ** 2 <= 1);
+    + ((run.y - reef.y) / (reef.ry + SUB.radius)) ** 2 <= 1)
+    || (!tentacleOpen(run.elapsedMs)
+      && ((run.x - SUB.tentacle.x) / (SUB.tentacle.rx + SUB.radius)) ** 2
+      + ((run.y - SUB.tentacle.y) / (SUB.tentacle.ry + SUB.radius)) ** 2 <= 1);
   if (hitReef) {
     run.x = run.checkpoint.x;
     run.y = run.checkpoint.y;

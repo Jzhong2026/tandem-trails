@@ -1,5 +1,5 @@
 import { nextGameLevel, SUB_LEVEL_TITLE, SUB_TITLE } from '../shared/game-levels.js';
-import { SUB } from '../shared/sub.js';
+import { SUB, tentacleOpen } from '../shared/sub.js';
 import type { SubView } from '../shared/sub.js';
 import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
@@ -18,6 +18,9 @@ function goal(run: SubView) {
   if (run.recoveryMs > 0) return '碰到礁石了，从最近的浮标重新出发。';
   if (!run.bubbles[0]) return '下潜绕过第一道礁石，收集低处的气泡';
   if (!run.bubbles[1]) return '上浮绕过第二道礁石，收集高处的气泡';
+  if (!tentacleOpen(run.elapsedMs) && Math.abs(run.x - SUB.tentacle.x) < 90) {
+    return '触手门闭着：等它缩回去，喊「现在」再冲';
+  }
   if (!run.rescued) return '穿过前面的石缝，去接小海马';
   return '小海马已上艇，开向珊瑚站';
 }

@@ -73,12 +73,14 @@ test('a family pilots the submarine on two axes, recovers from a reef bump, and 
     await touchUntil('前进', state => state.bubbles[0]);
     await expect(host.getByText('上浮绕过第二道礁石，收集高处的气泡')).toBeVisible();
 
-    // Rise over the standing reef and collect the high bubble.
-    await keyUntil('a', state => state.y <= 140);
+    // Rise over the standing reef while thrusting against the current, and collect the high bubble.
+    await bothUntil('a', '前进', state => state.y <= 140);
     await touchUntil('前进', state => state.bubbles[1]);
 
-    // Settle into the middle of the stone gap, pass through, and pick up the seahorse.
-    await keyUntil('d', state => state.y >= 200 && state.y <= 250);
+    // Settle into the middle of the stone gap, wait for the tentacle gate, then pick up the seahorse.
+    await keyUntil('d', state => state.y >= 180 && state.y <= 200);
+    await touchUntil('前进', state => state.x >= 700);
+    await until(state => state.elapsedMs % SUB.tentacle.periodMs < 200);
     await touchUntil('前进', state => state.rescued);
     await expect(host.getByText('小海马已上艇，开向珊瑚站')).toBeVisible();
     await touchUntil('前进', state => state.finished);

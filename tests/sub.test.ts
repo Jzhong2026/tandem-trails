@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createSub, stepSub, SUB } from '../src/shared/sub.js';
+import { createSub, stepSub, SUB, tentacleOpen } from '../src/shared/sub.js';
+import { GAME_TICK_MS } from '../src/shared/game-levels.js';
 import type { SubView } from '../src/shared/sub.js';
 import type { MovementInput, MovementInputs } from '../src/shared/movement.js';
 
@@ -73,10 +74,47 @@ test('a family can pilot the whole route to the coral station without a bump', (
   tick(run, { left: idle, right: forward }, () => run.bubbles[0]);
   tick(run, { left: up, right: idle }, () => run.y <= 140);
   tick(run, { left: idle, right: forward }, () => run.bubbles[1]);
-  tick(run, { left: down, right: idle }, () => run.y >= 200 && run.y <= 250);
+  tick(run, { left: down, right: idle }, () => run.y >= 180 && run.y <= 200);
+  tick(run, { left: idle, right: forward }, () => run.x >= 700);
+  tick(run, { left: idle, right: idle }, () => run.elapsedMs % SUB.tentacle.periodMs < 100);
   tick(run, { left: idle, right: forward }, () => run.rescued);
   assert.deepEqual(run.checkpoint, { x: SUB.seahorse.x + 28, y: SUB.seahorse.y });
   tick(run, { left: idle, right: forward }, () => run.finished);
   assert.equal(run.collisions, 0);
   assert.deepEqual(run.bubbles, [true, true]);
+});
+test('currents drift the sub unless the matching pilot holds thrust', () => {
+  const drift = createSub();
+  drift.x = 430; drift.y = 210;
+  stepSub(drift, { left: idle, right: idle });
+  assert.ok(drift.x > 430, `drift ${drift.x}`);
+  const held = createSub();
+  held.x = 430; held.y = 210;
+  stepSub(held, { left: idle, right: forward });
+  assert.equal(held.x, 430 + 126 * (GAME_TICK_MS / 1000));
+  const sink = createSub();
+  sink.x = 640; sink.y = 150;
+  stepSub(sink, { left: idle, right: idle });
+  assert.ok(sink.y > 150);
+  const dive = createSub();
+  dive.x = 640; dive.y = 150;
+  stepSub(dive, { left: { ...idle, right: true }, right: idle });
+  assert.equal(dive.y, 150 + 110 * (GAME_TICK_MS / 1000));
+});
+
+test('the tentacle gate blocks the column while closed and opens on its cycle', () => {
+  assert.equal(tentacleOpen(0), true);
+  assert.equal(tentacleOpen(SUB.tentacle.openMs), false);
+  assert.equal(tentacleOpen(SUB.tentacle.periodMs), true);
+  const closed = createSub();
+  closed.x = SUB.tentacle.x; closed.y = 200; closed.elapsedMs = SUB.tentacle.openMs;
+  closed.checkpoint = { x: 620, y: 200 };
+  stepSub(closed, { left: idle, right: idle });
+  assert.equal(closed.collisions, 1);
+  assert.equal(closed.x, 620);
+  const open = createSub();
+  open.x = SUB.tentacle.x - 30; open.y = 200; open.elapsedMs = 0;
+  stepSub(open, { left: idle, right: forward });
+  assert.equal(open.collisions, 0);
+  assert.ok(open.x > SUB.tentacle.x - 30);
 });
