@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QUEST_LEVELS } from '../shared/quest-levels.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import type { Appearance, BuddyLooks } from '../shared/buddy.js';
+import type { Seat } from '../shared/protocol.js';
+import { loadBuddyPreference, saveBuddyPreference } from './buddy-save.js';
 import { QuestAudio } from './quest-audio.js';
 import { loadQuestSave, QuestMap, saveQuestSave } from './quest-map.js';
 import type { QuestRecord, QuestSave } from './quest-map.js';
@@ -23,6 +27,15 @@ export function QuestGame({ onExit, initialMode = 'solo' }: Props) {
   const [screen, setScreen] = useState<'map' | 'play'>('map');
   const [levelIndex, setLevelIndex] = useState(0);
   const [runKey, setRunKey] = useState(0);
+  const [looks, setLooks] = useState<BuddyLooks>(() => ({
+    left: loadBuddyPreference('left') ?? DEFAULT_APPEARANCE.left,
+    right: loadBuddyPreference('right') ?? DEFAULT_APPEARANCE.right,
+  }));
+
+  const changeLooks = (seat: Seat, next: Appearance) => {
+    saveBuddyPreference(seat, next);
+    setLooks(current => ({ ...current, [seat]: next }));
+  };
 
   useEffect(() => () => audio.dispose(), [audio]);
   useEffect(() => { saveQuestSave(save); }, [save]);
@@ -97,9 +110,9 @@ export function QuestGame({ onExit, initialMode = 'solo' }: Props) {
         <button className="qbtn ghost small" onClick={onExit}>返回首页</button>
       </div>
       {screen === 'map'
-        ? <QuestMap save={save} mode={mode} assist={assist} onMode={changeMode}
+        ? <QuestMap save={save} mode={mode} assist={assist} looks={looks} onLooks={changeLooks} onMode={changeMode}
           onAssist={setAssist} onFree={free => setSave(current => ({ ...current, free }))} onPick={pick} />
-        : <QuestStage levelIndex={levelIndex} coop={mode === 'coop'} assist={assist} audio={audio}
+        : <QuestStage levelIndex={levelIndex} coop={mode === 'coop'} assist={assist} audio={audio} looks={looks}
           runKey={runKey} record={save.records[QUEST_LEVELS[levelIndex].id]}
           onComplete={complete} onExit={exitToMap} onNext={next} onRetry={retry} />}
     </div>

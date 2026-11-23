@@ -1,4 +1,8 @@
 import { QUEST_LEVELS } from '../shared/quest-levels.js';
+import { worldStoryOf } from '../shared/quest-story.js';
+import type { Appearance, BuddyLooks } from '../shared/buddy.js';
+import type { Seat } from '../shared/protocol.js';
+import { BuddyControls, BuddyPreview } from './buddy-picker.js';
 import { THEME_SKINS } from './quest-scenery.js';
 
 export interface QuestRecord { stars: number; coins: number; timeMs: number; score: number }
@@ -43,13 +47,15 @@ interface Props {
   save: QuestSave;
   mode: 'solo' | 'coop';
   assist: boolean;
+  looks: BuddyLooks;
+  onLooks: (seat: Seat, next: Appearance) => void;
   onMode: (mode: 'solo' | 'coop') => void;
   onAssist: (assist: boolean) => void;
   onFree: (free: boolean) => void;
   onPick: (index: number) => void;
 }
 
-export function QuestMap({ save, mode, assist, onMode, onAssist, onFree, onPick }: Props) {
+export function QuestMap({ save, mode, assist, looks, onLooks, onMode, onAssist, onFree, onPick }: Props) {
   const totalStars = Object.values(save.records).reduce((sum, record) => sum + record.stars, 0);
   const cleared = Object.keys(save.records).length;
   const nextIndex = Math.min(QUEST_LEVELS.length - 1, save.unlocked);
@@ -76,6 +82,24 @@ export function QuestMap({ save, mode, assist, onMode, onAssist, onFree, onPick 
         <button className="quest-mode" aria-pressed={save.free} onClick={() => onFree(!save.free)}>
           <strong>自由选关</strong><span>{save.free ? '全部关卡可选' : '按顺序解锁'}</span>
         </button>
+      </div>
+    </div>
+
+    <div className="quest-buddies">
+      <h3>我的形象</h3>
+      <div className="quest-buddy-row">
+        {(['left', 'right'] as const).map((seat, index) => (
+          <div className={`buddy-card ${seat}${index === 0 ? ' own' : ''}`} key={seat}>
+            <div className="buddy-card-head">
+              <BuddyPreview appearance={looks[seat]} size={72} />
+              <div className="buddy-card-copy">
+                <strong>{looks[seat].name}</strong>
+                <span className="buddy-role">{index === 0 ? 'P1 前锋' : 'P2 后卫'}{mode === 'solo' && index === 1 ? ' · 双人时上场' : ''}</span>
+              </div>
+            </div>
+            {(mode === 'coop' || index === 0) && <BuddyControls appearance={looks[seat]} onChange={next => onLooks(seat, next)} />}
+          </div>
+        ))}
       </div>
     </div>
 
@@ -145,6 +169,7 @@ export function QuestMap({ save, mode, assist, onMode, onAssist, onFree, onPick 
         const done = levels.filter(level => save.records[level.id]).length;
         return <div className="quest-world" key={world}>
           <h3>{levels[0].world}</h3>
+          <p className="quest-world-intro">{worldStoryOf(levels[0]).intro}</p>
           <p>{levels.map(level => level.name).join(' · ')}</p>
           <div className="bar"><i style={{ width: `${done / 3 * 100}%` }} /></div>
         </div>;
@@ -153,7 +178,7 @@ export function QuestMap({ save, mode, assist, onMode, onAssist, onFree, onPick 
 
     {mode === 'coop' && <div className="quest-roles">
       <div className="quest-role striker">
-        <h3><span aria-hidden="true">🔥</span>P1 前锋 · 芽芽</h3>
+        <h3><span aria-hidden="true">🔥</span>P1 前锋 · {looks.left.name}</h3>
         <ul>
           <li><b>冲刺击</b>：按 <kbd>F</kbd> 向前突进，撞到的敌人直接清掉</li>
           <li>吃到火花花后，<kbd>F</kbd> 改为发射弹跳火球</li>
@@ -162,7 +187,7 @@ export function QuestMap({ save, mode, assist, onMode, onAssist, onFree, onPick 
         </ul>
       </div>
       <div className="quest-role guardian">
-        <h3><span aria-hidden="true">🛡️</span>P2 后卫 · 豆豆</h3>
+        <h3><span aria-hidden="true">🛡️</span>P2 后卫 · {looks.right.name}</h3>
         <ul>
           <li><b>背盾</b>：身后的敌人撞上来会被弹开并眩晕，不掉心</li>
           <li><b>守护罩</b>：按 <kbd>,</kbd> 展开 2.6 秒护罩，罩内两人都无敌</li>

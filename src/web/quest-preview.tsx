@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { createQuest, IDLE_INPUT, QUEST_STEP, stepQuest, tileAt } from '../shared/quest.js';
 import type { QuestInput, QuestRun } from '../shared/quest.js';
 import { QUEST_LEVELS, TILE, VIEW_HEIGHT, VIEW_WIDTH } from '../shared/quest-levels.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import { buildTerrain, paintPreview, ParticleField } from './quest-render.js';
 
 const SHOWCASE = [0, 3, 10, 7];
@@ -35,7 +37,7 @@ function demoInput(run: QuestRun, tick: number): QuestInput[] {
   return [input];
 }
 
-export function QuestPreview({ coop }: { coop: boolean }) {
+export function QuestPreview({ coop, looks = DEFAULT_APPEARANCE }: { coop: boolean; looks?: BuddyLooks }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
 
@@ -46,7 +48,7 @@ export function QuestPreview({ coop }: { coop: boolean }) {
     if (!ctx) return;
 
     let slot = 0;
-    let run = createQuest(SHOWCASE[slot], { coop, assist: true });
+    let run = createQuest(SHOWCASE[slot], { coop, assist: true, looks });
     let terrain = buildTerrain(run);
     const particles = new ParticleField();
     let scale = 1;
@@ -83,7 +85,7 @@ export function QuestPreview({ coop }: { coop: boolean }) {
       if (held > 11 || run.status !== 'playing' || run.players[0].x > 62 * TILE) {
         held = 0;
         slot = (slot + 1) % SHOWCASE.length;
-        run = createQuest(SHOWCASE[slot], { coop, assist: true });
+        run = createQuest(SHOWCASE[slot], { coop, assist: true, looks });
         terrain = buildTerrain(run);
         particles.clear();
         if (labelRef.current) labelRef.current.textContent = QUEST_LEVELS[SHOWCASE[slot]].name;
@@ -99,7 +101,7 @@ export function QuestPreview({ coop }: { coop: boolean }) {
       window.cancelAnimationFrame(frame);
       particles.clear();
     };
-  }, [coop]);
+  }, [coop, looks]);
 
   return <figure className="quest-preview">
     <canvas className="quest-canvas" ref={canvasRef} role="img" aria-label="星芽大冒险关卡预览动画" />

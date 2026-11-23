@@ -1,5 +1,7 @@
 import { GROUND_ROW, QUEST_LEVELS, ROWS, TILE, VIEW_HEIGHT, VIEW_WIDTH } from './quest-levels.js';
 import type { QuestLevel, QuestTheme } from './quest-levels.js';
+import { DEFAULT_APPEARANCE } from './buddy.js';
+import type { BuddyLooks } from './buddy.js';
 
 export const QUEST_STEP = 1 / 60;
 export const SOLO_HEARTS = 5;
@@ -147,9 +149,10 @@ export interface QuestRun {
   rearSpawnMs: number;
   guardBreaks: number;
   viewWidth: number;
+  looks: BuddyLooks;
 }
 
-export interface QuestOptions { assist?: boolean; coop?: boolean; keep?: { coins: number; score: number } }
+export interface QuestOptions { assist?: boolean; coop?: boolean; keep?: { coins: number; score: number }; looks?: BuddyLooks }
 
 function makePlayer(index: number, x: number, y: number, hearts: number, role: QuestRole): Player {
   return {
@@ -201,6 +204,7 @@ export function createQuest(levelIndex: number, options: QuestOptions | boolean 
     respawn: { x: startX, y: startY },
     events: [], cameraX: 0, cameraY: 0, shake: 0, assist: opts.assist ?? false, theme: level.theme, nextId: 1,
     rearSpawnMs: ROLE.rearSpawnMs * 0.7, guardBreaks: 0, viewWidth: VIEW_WIDTH,
+    looks: opts.looks ?? DEFAULT_APPEARANCE,
   };
 
   let phaseGroup = 0;

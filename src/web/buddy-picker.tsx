@@ -37,19 +37,54 @@ export function BuddyPreview({ appearance, size = 96 }: { appearance: Appearance
   return <canvas className="buddy-preview" style={{ width: size, height: size }} ref={canvas} aria-hidden="true" />;
 }
 
+export function BuddyControls({ appearance, onChange }: { appearance: Appearance; onChange: (next: Appearance) => void }) {
+  const [name, setName] = useState(appearance.name);
+  useEffect(() => { setName(appearance.name); }, [appearance.name]);
+  function commitName() {
+    if (name !== appearance.name) onChange({ ...appearance, name });
+  }
+  return <div className="buddy-picker">
+    <div className="buddy-row" role="group" aria-label="形象">
+      {BUDDY_BODIES.map(body => (
+        <button key={body} className="pick-btn" aria-pressed={appearance.body === body}
+          onClick={() => onChange({
+            ...appearance, body,
+            name: appearance.name === BODY_DEFAULT_NAME[appearance.body] ? BODY_DEFAULT_NAME[body] : appearance.name,
+          })}>
+          {BODY_LABEL[body]}
+        </button>
+      ))}
+    </div>
+    <div className="buddy-row" role="group" aria-label="配色">
+      {BUDDY_PALETTES.map((pal, index) => (
+        <button key={index} className="pick-swatch" style={{ background: pal.cap }}
+          aria-label={`配色 ${index + 1}`} aria-pressed={appearance.palette === index}
+          onClick={() => onChange({ ...appearance, palette: index })} />
+      ))}
+    </div>
+    <div className="buddy-row" role="group" aria-label="体型">
+      {BUDDY_SIZES.map(size => (
+        <button key={size} className="pick-btn" aria-pressed={appearance.size === size}
+          onClick={() => onChange({ ...appearance, size })}>
+          {SIZE_LABEL[size]}
+        </button>
+      ))}
+    </div>
+    <label className="buddy-name">
+      <span>名字</span>
+      <input value={name} maxLength={BUDDY_NAME_MAX} onChange={event => setName(event.target.value)}
+        onBlur={commitName} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
+    </label>
+  </div>;
+}
+
 function BuddySeatCard({ room, seat, own, game }: { room: RoomView; seat: Seat; own: boolean; game: Game }) {
   const player = room.players[seat];
   const appearance = player?.appearance ?? DEFAULT_APPEARANCE[seat];
-  const [name, setName] = useState(appearance.name);
-  useEffect(() => { setName(appearance.name); }, [appearance.name]);
 
   function commit(next: Appearance) {
     saveBuddyPreference(seat, next);
     game.setAppearance(next);
-  }
-  function commitName() {
-    if (name === appearance.name) return;
-    commit({ ...appearance, name });
   }
 
   const status = !player ? '等待加入' : !player.online ? '暂时掉线' : player.ready ? '已准备' : '未准备';
@@ -62,36 +97,7 @@ function BuddySeatCard({ room, seat, own, game }: { room: RoomView; seat: Seat; 
         <span className={`buddy-status ${player?.ready ? 'ready' : ''}`}>{status}</span>
       </div>
     </div>
-    {own && player && <div className="buddy-picker">
-      <div className="buddy-row" role="group" aria-label="形象">
-        {BUDDY_BODIES.map(body => (
-          <button key={body} className="pick-btn" aria-pressed={appearance.body === body}
-            onClick={() => commit({ ...appearance, body, name: appearance.name === BODY_DEFAULT_NAME[appearance.body] ? BODY_DEFAULT_NAME[body] : appearance.name })}>
-            {BODY_LABEL[body]}
-          </button>
-        ))}
-      </div>
-      <div className="buddy-row" role="group" aria-label="配色">
-        {BUDDY_PALETTES.map((pal, index) => (
-          <button key={index} className="pick-swatch" style={{ background: pal.cap }}
-            aria-label={`配色 ${index + 1}`} aria-pressed={appearance.palette === index}
-            onClick={() => commit({ ...appearance, palette: index })} />
-        ))}
-      </div>
-      <div className="buddy-row" role="group" aria-label="体型">
-        {BUDDY_SIZES.map(size => (
-          <button key={size} className="pick-btn" aria-pressed={appearance.size === size}
-            onClick={() => commit({ ...appearance, size })}>
-            {SIZE_LABEL[size]}
-          </button>
-        ))}
-      </div>
-      <label className="buddy-name">
-        <span>名字</span>
-        <input value={name} maxLength={BUDDY_NAME_MAX} onChange={event => setName(event.target.value)}
-          onBlur={commitName} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
-      </label>
-    </div>}
+    {own && player && <BuddyControls appearance={appearance} onChange={commit} />}
   </li>;
 }
 

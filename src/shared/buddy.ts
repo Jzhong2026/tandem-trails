@@ -14,6 +14,8 @@ export interface Appearance {
   name: string;
 }
 
+export type BuddyLooks = Record<Seat, Appearance>;
+
 export const BODY_DEFAULT_NAME: Record<BuddyBody, string> = {
   kid: '芽芽',
   bear: '熊墩墩',

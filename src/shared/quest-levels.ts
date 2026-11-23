@@ -17,6 +17,7 @@ export interface QuestLevel {
   world: string;
   theme: QuestTheme;
   hint: string;
+  story: string;
   width: number;
   grid: string[];
   ice: boolean;
@@ -99,6 +100,7 @@ interface LevelSeed {
   world: string;
   theme: QuestTheme;
   hint: string;
+  story: string;
   width: number;
   ice?: boolean;
   water?: boolean;
@@ -114,6 +116,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'meadow', name: '绿野第一步', world: WORLD_ONE, theme: 'meadow', width: 150,
     hint: '跳到栗栗头上就能把它踩扁。长按跳跃键跳得更高，轻点只是小跳。',
+    story: '栗栗把金币埋进草坡，顶一顶问号砖就能找回。',
     build: m => {
       m.ground(0, 33).ground(37, 72).ground(76, 149);
       m.put(3, 11, '@');
@@ -148,6 +151,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'hills', name: '蘑菇丘陵', world: WORLD_ONE, theme: 'hills', width: 166,
     hint: '水管里的咬咬花会缩回去，等它低头再跳过去。',
+    story: '水管里的咬咬花守着丘陵小径，等它低头再过去。',
     build: m => {
       m.ground(0, 30).ground(34, 60).ground(64, 98).ground(102, 165);
       m.ground(18, 26, 10);
@@ -182,6 +186,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'cave', name: '金币洞窟', world: WORLD_ONE, theme: 'cave', width: 162,
     hint: '刺球不能踩，跳过去就好。移动石台会带你越过宽沟。',
+    story: '洞窟深处有一整面金币墙，踩弹簧才够得到。',
     build: m => {
       m.box(0, 161, 0, '#').box(0, 161, 1, '#');
       m.ground(0, 40).ground(46, 90).ground(95, 161);
@@ -219,6 +224,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'sky', name: '云端阶梯', world: WORLD_TWO, theme: 'sky', width: 172,
     hint: '云台可以从下面穿上去。掉下去只会回到最近的旗子。',
+    story: '云梯一步一停，掉下去也有存档旗接住你。',
     build: m => {
       m.ground(0, 10, 12, '=');
       m.put(3, 11, '@');
@@ -264,6 +270,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'desert', name: '流沙遗迹', world: WORLD_TWO, theme: 'desert', width: 168,
     hint: '裂纹石板站久了会塌，别停太久，一路小跑过去。',
+    story: '遗迹的流沙会吞脚，移动平台是唯一的路。',
     build: m => {
       m.ground(0, 26).ground(32, 58).ground(64, 96).ground(102, 167);
       m.put(3, 11, '@');
@@ -301,6 +308,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'snow', name: '霜糖滑道', world: WORLD_TWO, theme: 'snow', width: 168, ice: true,
     hint: '冰面有点滑，提前松手就能慢慢停下。企鹅壳可以踢走。',
+    story: '企鹅壳在冰面上滑来滑去，踢走它再慢慢停。',
     build: m => {
       m.ground(0, 34).ground(38, 70).ground(74, 110).ground(114, 167);
       m.put(3, 11, '@');
@@ -335,6 +343,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'candy', name: '糖果传送带', world: WORLD_THREE, theme: 'candy', width: 174,
     hint: '传送带会推着你走，顺着它跑更省力。弹簧能把你弹得很高。',
+    story: '传送带把糖果运向相反方向，逆着走才拿得到。',
     build: m => {
       m.ground(0, 24).ground(28, 62).ground(66, 104).ground(108, 173);
       m.put(3, 11, '@');
@@ -377,6 +386,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'sea', name: '泡泡浅海', world: WORLD_THREE, theme: 'sea', width: 164, water: true,
     hint: '在水里按跳跃就是划水，可以一直往上游。碰到水母会掉一颗心。',
+    story: '水母在浅海打盹，划水绕开它们去够高处的泡泡。',
     build: m => {
       m.ground(0, 163, 13);
       m.box(0, 163, 0, '#');
@@ -413,6 +423,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'night', name: '萤火夜林', world: WORLD_THREE, theme: 'night', width: 172,
     hint: '幽灵台会一亮一暗，亮着的时候才踩得上去，节奏很慢不用急。',
+    story: '夜林只有萤火虫照路，跟着光走别掉队。',
     build: m => {
       m.ground(0, 22).ground(30, 52).ground(60, 88).ground(96, 124).ground(132, 171);
       m.put(3, 11, '@');
@@ -457,6 +468,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'lava', name: '熔岩要塞', world: WORLD_FOUR, theme: 'lava', width: 174,
     hint: '岩浆很烫，碰到会掉一颗心；踩上石台再跳。蹦蹦只会原地跳，看准节奏走过去。',
+    story: '熔岩池上架着碎砖，踩稳了再跳下一块。',
     build: m => {
       m.ground(0, 20).ground(26, 44).ground(50, 72).ground(78, 100).ground(106, 173);
       m.box(21, 25, 13, 'L').box(21, 25, 14, 'L');
@@ -498,6 +510,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'rainbow', name: '彩虹天桥', world: WORLD_FOUR, theme: 'rainbow', width: 182,
     hint: '一路弹簧连跳，收集星星就无敌啦，撞到谁都不怕。',
+    story: '天桥的相位板一隐一现，数着节奏过。',
     build: m => {
       m.ground(0, 16).ground(21, 40).ground(45, 66).ground(71, 92).ground(97, 120).ground(125, 181);
       m.put(3, 11, '@');
@@ -539,6 +552,7 @@ const SEEDS: LevelSeed[] = [
   {
     id: 'castle', name: '菇霸城堡', world: WORLD_FOUR, theme: 'castle', width: 128,
     hint: '菇霸落地后会头晕，这时跳到它头上！三次就能打败它。',
+    story: '菇霸落地会头晕：跳上去三次，把彩虹桥赢回来。',
     build: m => {
       m.box(0, 127, 0, '#').box(0, 127, 1, '#');
       m.ground(0, 127);
@@ -581,6 +595,7 @@ function buildLevel(seed: LevelSeed, index: number): QuestLevel {
     world: seed.world,
     theme: seed.theme,
     hint: seed.hint.trim(),
+    story: seed.story,
     width: seed.width,
     grid,
     ice: seed.ice ?? false,

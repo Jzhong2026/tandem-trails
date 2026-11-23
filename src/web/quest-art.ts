@@ -1,13 +1,11 @@
 import type { Body, Enemy, Pickup, Player, QuestRun, Shot } from '../shared/quest.js';
 import { ROLE } from '../shared/quest.js';
 import { TILE } from '../shared/quest-levels.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import { paletteOf, BUDDY_PALETTES, BUDDY_SPECIES } from './buddy.js';
+import type { BuddyLooks } from './buddy.js';
 
 type Context = CanvasRenderingContext2D;
-
-export const HERO_SKINS = [
-  { cap: '#e8503a', capDark: '#b32e22', capLight: '#ff8a63', suit: '#2f7f8c', suitDark: '#1d5a66', shirt: '#fdf1dc', skin: '#ffd9b0', skinDark: '#e8b183', hair: '#5a3320', boot: '#7a4326', trim: '#ffd166', scarf: '#ffd166' },
-  { cap: '#3fbf8f', capDark: '#22876a', capLight: '#7fe6bb', suit: '#7a4f9c', suitDark: '#573573', shirt: '#fdf1dc', skin: '#ffd9b0', skinDark: '#e8b183', hair: '#3d2a1c', boot: '#4a3a6b', trim: '#ffe08a', scarf: '#8fe3ff' },
-] as const;
 
 export function ellipse(ctx: Context, x: number, y: number, rx: number, ry: number, color: string | CanvasGradient) {
   ctx.fillStyle = color;
@@ -141,15 +139,16 @@ function heroPose(player: Player, seconds: number): HeroPose {
   return base;
 }
 
-export function paintHero(ctx: Context, player: Player, seconds: number, coop: boolean) {
-  const skin = HERO_SKINS[player.index % 2];
-  const scale = player.h / 34;
+export function paintHero(ctx: Context, player: Player, seconds: number, coop: boolean, looks: BuddyLooks = DEFAULT_APPEARANCE) {
+  const appearance = looks[player.index === 0 ? 'left' : 'right'];
+  const skin = paletteOf(appearance);
+  const scale = (player.h / 34) * (appearance.size === 'big' ? 1.12 : 0.94);
   const pose = heroPose(player, seconds);
   const cx = player.x + player.w / 2;
   const feet = player.y + player.h;
 
   if (player.bubbleMs > 0) {
-    paintBubble(ctx, cx, feet - 18, seconds, player.index);
+    paintBubble(ctx, cx, feet - 18, seconds, skin);
     return;
   }
 
@@ -252,13 +251,44 @@ export function paintHero(ctx: Context, player: Player, seconds: number, coop: b
   ctx.translate(0, headY);
   ctx.rotate(pose.lean * 0.2);
   ellipse(ctx, -0.4, 0.6, 7.4, 7.2, skin.skinDark);
+  const species = appearance.body === 'kid' ? null : BUDDY_SPECIES[appearance.body];
   const faceGradient = ctx.createRadialGradient(-2, -2.4, 1, 0, 0, 8.4);
-  faceGradient.addColorStop(0, '#fff0dc');
-  faceGradient.addColorStop(1, skin.skin);
+  if (appearance.body === 'penguin') {
+    faceGradient.addColorStop(0, '#ffffff');
+    faceGradient.addColorStop(1, '#e8eef2');
+  } else if (species) {
+    faceGradient.addColorStop(0, species.muzzle);
+    faceGradient.addColorStop(1, species.fur);
+  } else {
+    faceGradient.addColorStop(0, '#fff0dc');
+    faceGradient.addColorStop(1, skin.skin);
+  }
   ellipse(ctx, 0, 0, 7.2, 7, faceGradient);
-  ellipse(ctx, -6.4, 1.2, 1.9, 2.4, skin.skin);
-  ellipse(ctx, 6.4, 1.2, 1.9, 2.4, skin.skin);
-  polygon(ctx, skin.hair, [[-6.6, -1.6], [-5.2, -4.6], [-3.4, -1.8], [-1.6, -4.8], [0.2, -1.9], [2, -4.6], [3.6, -1.7], [5.4, -4.2], [6.6, -1.4], [6.6, -3.4], [-6.6, -3.4]]);
+  if (appearance.body === 'bear') {
+    ellipse(ctx, -5.6, -5.4, 2.8, 2.8, species!.furDark);
+    ellipse(ctx, 5.6, -5.4, 2.8, 2.8, species!.furDark);
+    ellipse(ctx, -5.6, -5.4, 1.4, 1.4, species!.muzzle);
+    ellipse(ctx, 5.6, -5.4, 1.4, 1.4, species!.muzzle);
+    ellipse(ctx, 0.6, 2.4, 3.4, 2.5, species!.muzzle);
+    ellipse(ctx, 0.6, 1.5, 1.3, 1.0, '#4a2c1c');
+  }
+  if (appearance.body === 'fox') {
+    polygon(ctx, species!.furDark, [[-7, -3], [-5.4, -9.6], [-2.2, -4.4]]);
+    polygon(ctx, species!.furDark, [[7, -3], [5.4, -9.6], [2.2, -4.4]]);
+    polygon(ctx, species!.muzzle, [[-5.8, -4], [-5.2, -7.6], [-3.4, -4.6]]);
+    polygon(ctx, species!.muzzle, [[5.8, -4], [5.2, -7.6], [3.4, -4.6]]);
+    ellipse(ctx, 0.6, 2.4, 3.4, 2.5, species!.muzzle);
+    polygon(ctx, '#4a2c1c', [[-0.4, 1.2], [1.8, 1.2], [0.7, 2.5]]);
+  }
+  if (appearance.body === 'penguin') {
+    ellipse(ctx, 0, -4.6, 7.2, 3.6, species!.fur);
+    polygon(ctx, '#f2a13c', [[-1.6, 1.2], [1.8, 1.2], [0.1, 3.6]]);
+  }
+  if (!species) {
+    ellipse(ctx, -6.4, 1.2, 1.9, 2.4, skin.skin);
+    ellipse(ctx, 6.4, 1.2, 1.9, 2.4, skin.skin);
+    polygon(ctx, skin.hair, [[-6.6, -1.6], [-5.2, -4.6], [-3.4, -1.8], [-1.6, -4.8], [0.2, -1.9], [2, -4.6], [3.6, -1.7], [5.4, -4.2], [6.6, -1.4], [6.6, -3.4], [-6.6, -3.4]]);
+  }
   ellipse(ctx, -3.4, 2.6, 2.1, 1.3, '#ff9d8a55');
   ellipse(ctx, 3.6, 2.6, 2.1, 1.3, '#ff9d8a55');
 
@@ -300,7 +330,7 @@ export function paintHero(ctx: Context, player: Player, seconds: number, coop: b
     ctx.moveTo(1.4, -3.7); ctx.lineTo(4.4, -3.1);
     ctx.stroke();
   }
-  ellipse(ctx, 0.6, 1.4, 0.85, 0.7, skin.skinDark);
+  if (!species) ellipse(ctx, 0.6, 1.4, 0.85, 0.7, skin.skinDark);
   ctx.strokeStyle = '#8a4a34';
   ctx.lineWidth = 0.95;
   ctx.beginPath();
@@ -344,7 +374,7 @@ export function paintHero(ctx: Context, player: Player, seconds: number, coop: b
     ctx.save();
     ctx.font = '700 11px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    const label = player.index === 0 ? 'P1 前锋' : 'P2 后卫';
+    const label = appearance.name;
     const width = ctx.measureText(label).width + 12;
     const tagY = player.y - (player.index === 0 ? 22 : 40);
     roundRect(ctx, cx - width / 2, tagY, width, 15, 7, player.index === 0 ? '#e8503ae6' : '#3fbf8fe6');
@@ -400,8 +430,7 @@ function paintGuardDome(ctx: Context, x: number, y: number, player: Player, seco
   ctx.restore();
 }
 
-function paintBubble(ctx: Context, x: number, y: number, seconds: number, index: number) {
-  const skin = HERO_SKINS[index % 2];
+function paintBubble(ctx: Context, x: number, y: number, seconds: number, skin: typeof BUDDY_PALETTES[number]) {
   const wobble = Math.sin(seconds * 4) * 2;
   ctx.save();
   glow(ctx, x, y, 34, `${skin.cap}44`);

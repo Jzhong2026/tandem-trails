@@ -1,6 +1,8 @@
 import { BUDDY_PALETTE_COUNT, DEFAULT_APPEARANCE } from '../shared/buddy.js';
-import type { Appearance, BuddyBody } from '../shared/buddy.js';
+import type { Appearance, BuddyBody, BuddyLooks } from '../shared/buddy.js';
 import type { RoomView, Seat } from '../shared/protocol.js';
+
+export type { BuddyLooks } from '../shared/buddy.js';
 
 type Context = CanvasRenderingContext2D;
 
@@ -18,13 +20,12 @@ export const BUDDY_PALETTES = [
   { cap: '#6b8f3f', capDark: '#4a6b2a', capLight: '#a8c878', suit: '#8a5c3c', suitDark: '#6b4429', shirt: '#fdf1dc', skin: '#ffd9b0', skinDark: '#e8b183', hair: '#3d2a1c', boot: '#4a3a2b', trim: '#ffd166', scarf: '#ff8a63' },
 ] as const;
 
-const SPECIES: Record<Exclude<BuddyBody, 'kid'>, { fur: string; furDark: string; muzzle: string }> = {
+export const BUDDY_SPECIES: Record<Exclude<BuddyBody, 'kid'>, { fur: string; furDark: string; muzzle: string }> = {
   bear: { fur: '#b9825a', furDark: '#8a5c3c', muzzle: '#e8c9a4' },
   fox: { fur: '#e8874a', furDark: '#b35c2a', muzzle: '#fff0dc' },
   penguin: { fur: '#2b3440', furDark: '#1b222c', muzzle: '#ffffff' },
 };
-
-export type BuddyLooks = Record<Seat, Appearance>;
+const SPECIES = BUDDY_SPECIES;
 
 export function looksOf(room: RoomView | null): BuddyLooks {
   return {
@@ -147,6 +148,140 @@ function armIK(ctx: Context, sx: number, sy: number, tx: number, ty: number, ben
   ellipse(ctx, tx, ty, handR, handR, hand);
 }
 
+export interface HeadOptions {
+  body: BuddyBody;
+  pal: typeof BUDDY_PALETTES[number];
+  eye: 'open' | 'shut' | 'happy' | 'cross';
+  mouth: 'smile' | 'open' | 'grit' | 'flat';
+  outfit: BuddyOutfit;
+  lean: number;
+  seconds: number;
+}
+
+export function paintHead(ctx: Context, h: HeadOptions) {
+  const { body, pal, eye, mouth, outfit, lean, seconds } = h;
+  const species = body === 'kid' ? null : SPECIES[body];
+  const fur = species?.fur ?? pal.suit;
+  const furDark = species?.furDark ?? pal.suitDark;
+  const muzzle = species?.muzzle ?? pal.shirt;
+  ctx.save();
+  ctx.save();
+  ctx.rotate(lean * 0.2);
+  if (body === 'bear') {
+    ellipse(ctx, -5.6, -5.4, 2.8, 2.8, furDark);
+    ellipse(ctx, 5.6, -5.4, 2.8, 2.8, furDark);
+    ellipse(ctx, -5.6, -5.4, 1.4, 1.4, muzzle);
+    ellipse(ctx, 5.6, -5.4, 1.4, 1.4, muzzle);
+  }
+  if (body === 'fox') {
+    polygon(ctx, furDark, [[-7, -3], [-5.4, -9.6], [-2.2, -4.4]]);
+    polygon(ctx, furDark, [[7, -3], [5.4, -9.6], [2.2, -4.4]]);
+    polygon(ctx, muzzle, [[-5.8, -4], [-5.2, -7.6], [-3.4, -4.6]]);
+    polygon(ctx, muzzle, [[5.8, -4], [5.2, -7.6], [3.4, -4.6]]);
+  }
+  ellipse(ctx, -0.4, 0.6, 7.4, 7.2, species ? furDark : pal.skinDark);
+  const face = ctx.createRadialGradient(-2, -2.4, 1, 0, 0, 8.4);
+  if (body === 'penguin') { face.addColorStop(0, '#ffffff'); face.addColorStop(1, '#e8eef2'); }
+  else if (species) { face.addColorStop(0, muzzle); face.addColorStop(1, fur); }
+  else { face.addColorStop(0, '#fff0dc'); face.addColorStop(1, pal.skin); }
+  ellipse(ctx, 0, 0, 7.2, 7, face);
+  if (body === 'penguin') {
+    ellipse(ctx, 0, -4.6, 7.2, 3.6, fur);
+    polygon(ctx, '#f2a13c', [[-1.6, 1.2], [1.8, 1.2], [0.1, 3.6]]);
+  }
+  if (!species) {
+    ellipse(ctx, -6.4, 1.2, 1.9, 2.4, pal.skin);
+    ellipse(ctx, 6.4, 1.2, 1.9, 2.4, pal.skin);
+    polygon(ctx, pal.hair, [[-6.6, -1.6], [-5.2, -4.6], [-3.4, -1.8], [-1.6, -4.8], [0.2, -1.9], [2, -4.6], [3.6, -1.7], [5.4, -4.2], [6.6, -1.4], [6.6, -3.4], [-6.6, -3.4]]);
+  }
+  if (species && body !== 'penguin') ellipse(ctx, 0.6, 2.4, 3.4, 2.5, muzzle);
+  ellipse(ctx, -3.6, 2.4, 1.9, 1.2, '#ff9d8a55');
+  ellipse(ctx, 3.8, 2.4, 1.9, 1.2, '#ff9d8a55');
+  if (eye === 'shut') {
+    ctx.strokeStyle = '#4a2c1c'; ctx.lineWidth = 1.1;
+    for (const ex of [-2.5, 2.9]) { ctx.beginPath(); ctx.arc(ex, -0.2, 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
+  } else if (eye === 'happy') {
+    ctx.strokeStyle = '#4a2c1c'; ctx.lineWidth = 1.2;
+    for (const ex of [-2.5, 2.9]) { ctx.beginPath(); ctx.arc(ex, 0.6, 1.6, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke(); }
+  } else {
+    for (const [ex, size] of [[-2.5, 1], [2.9, 1.08]] as const) {
+      ellipse(ctx, ex, -0.4, 1.85 * size, 2.25 * size, '#fffaf2');
+      ellipse(ctx, ex + 0.35, -0.25, 1.15 * size, 1.5 * size, '#3b2418');
+      ellipse(ctx, ex + 0.6, -0.85, 0.45, 0.55, '#ffffff');
+    }
+    if (!species) {
+      ctx.strokeStyle = '#5a3320'; ctx.lineWidth = 0.85; ctx.beginPath();
+      ctx.moveTo(-4.2, -3.2); ctx.lineTo(-1.2, -3.7);
+      ctx.moveTo(1.4, -3.7); ctx.lineTo(4.4, -3.1); ctx.stroke();
+    }
+  }
+  if (body === 'bear') ellipse(ctx, 0.6, 1.5, 1.3, 1.0, '#4a2c1c');
+  else if (body === 'fox') polygon(ctx, '#4a2c1c', [[-0.4, 1.2], [1.8, 1.2], [0.7, 2.5]]);
+  else if (body !== 'penguin') ellipse(ctx, 0.6, 1.4, 0.85, 0.7, pal.skinDark);
+  if (body !== 'penguin') {
+    ctx.strokeStyle = '#8a4a34'; ctx.lineWidth = 0.95; ctx.beginPath();
+    if (mouth === 'open') ctx.arc(0.8, 2.8, 1.9, 0.1 * Math.PI, 0.9 * Math.PI);
+    else ctx.arc(0.8, 2.4, 1.7, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+    if (mouth === 'open') ellipse(ctx, 0.8, 3.6, 1.2, 0.8, '#c4553f');
+  }
+
+  if (outfit === 'sprout' || outfit === 'sailor' || outfit === 'pilot') {
+    const g = ctx.createLinearGradient(0, -8, 0, -1);
+    if (outfit === 'sailor') { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe6ee'); }
+    else { g.addColorStop(0, pal.capLight); g.addColorStop(1, pal.cap); }
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, -3.2, 7.6, 5.4, 0, Math.PI, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+    roundRect(ctx, -7.8, -3.6, 15.6, 2.2, 1.1, outfit === 'sailor' ? '#2b4a7a' : pal.capDark);
+    ctx.fillStyle = outfit === 'sailor' ? '#dfe6ee' : pal.cap;
+    ctx.beginPath();
+    ctx.ellipse(5.6, -2.6, 5.2, 1.9, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ellipse(ctx, 5.6, -3.1, 4.4, 1.1, outfit === 'sailor' ? '#ffffff' : pal.capLight);
+    if (outfit === 'sprout') {
+      star(ctx, -0.4, -5.6, 2.5, 1.1, pal.trim);
+      ellipse(ctx, -0.4, -5.6, 0.9, 0.9, '#fff8dc');
+      ctx.strokeStyle = '#3f8f4f'; ctx.lineWidth = 1.2; ctx.beginPath();
+      ctx.moveTo(-1.2, -8.2); ctx.quadraticCurveTo(-2.4, -11.4, -0.6, -12.6); ctx.stroke();
+      ellipse(ctx, 1.1, -12.4, 2.6, 1.5, '#5cb85c');
+      ellipse(ctx, 0.6, -12.8, 1.4, 0.8, '#8ede8a');
+    }
+    if (outfit === 'sailor') star(ctx, -0.4, -5.4, 2.2, 1.0, '#2b4a7a');
+    if (outfit === 'pilot') {
+      roundRect(ctx, -6.4, -6.6, 12.8, 3.2, 1.6, '#3a4656');
+      ellipse(ctx, -3.2, -5, 2.2, 1.5, '#8fe3ff');
+      ellipse(ctx, 3.2, -5, 2.2, 1.5, '#8fe3ff');
+      limb(ctx, -7.4, -1, -7.4, 2.6, 1.6, '#3a4656');
+      ellipse(ctx, -7.4, 3.2, 2.2, 2.2, '#3a4656');
+      limb(ctx, -7.4, 3.2, -2.5, 4.6, 1.2, '#3a4656');
+      ellipse(ctx, -2.2, 4.7, 1.2, 1.2, '#ffc247');
+    }
+  }
+  if (outfit === 'miner') {
+    const g = ctx.createLinearGradient(0, -9, 0, -1);
+    g.addColorStop(0, '#ffd98a');
+    g.addColorStop(1, '#e8a33c');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, -3.0, 7.8, 5.8, 0, Math.PI, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+    roundRect(ctx, -8.2, -3.6, 16.4, 2.4, 1.2, '#b3762a');
+    limb(ctx, 0, -8.6, 0, -3.6, 1.6, '#b3762a');
+    roundRect(ctx, 4.6, -6.4, 4.4, 3.6, 1.2, '#5a4a33');
+    ellipse(ctx, 7.0, -4.6, 1.7, 1.7, '#fff0b4');
+  }
+  if (outfit === 'carrier') {
+    roundRect(ctx, -7.4, -6.2, 14.8, 3.0, 1.5, '#8a5c3c');
+    ellipse(ctx, 0, -6.4, 3.2, 2.2, '#f4e3c2');
+    ellipse(ctx, -1, -6.8, 0.8, 0.6, '#c9a06a');
+    ellipse(ctx, 1.2, -6.2, 0.7, 0.5, '#c9a06a');
+  }
+  ctx.restore();
+}
 export interface BuddyOptions {
   x: number;
   feet: number;
@@ -285,120 +420,7 @@ export function paintBuddy(ctx: Context, o: BuddyOptions) {
 
   ctx.save();
   ctx.translate(0, headY);
-  ctx.rotate(p.lean * 0.2);
-  if (body === 'bear') {
-    ellipse(ctx, -5.6, -5.4, 2.8, 2.8, furDark);
-    ellipse(ctx, 5.6, -5.4, 2.8, 2.8, furDark);
-    ellipse(ctx, -5.6, -5.4, 1.4, 1.4, muzzle);
-    ellipse(ctx, 5.6, -5.4, 1.4, 1.4, muzzle);
-  }
-  if (body === 'fox') {
-    polygon(ctx, furDark, [[-7, -3], [-5.4, -9.6], [-2.2, -4.4]]);
-    polygon(ctx, furDark, [[7, -3], [5.4, -9.6], [2.2, -4.4]]);
-    polygon(ctx, muzzle, [[-5.8, -4], [-5.2, -7.6], [-3.4, -4.6]]);
-    polygon(ctx, muzzle, [[5.8, -4], [5.2, -7.6], [3.4, -4.6]]);
-  }
-  ellipse(ctx, -0.4, 0.6, 7.4, 7.2, species ? furDark : pal.skinDark);
-  const face = ctx.createRadialGradient(-2, -2.4, 1, 0, 0, 8.4);
-  if (body === 'penguin') { face.addColorStop(0, '#ffffff'); face.addColorStop(1, '#e8eef2'); }
-  else if (species) { face.addColorStop(0, muzzle); face.addColorStop(1, fur); }
-  else { face.addColorStop(0, '#fff0dc'); face.addColorStop(1, pal.skin); }
-  ellipse(ctx, 0, 0, 7.2, 7, face);
-  if (body === 'penguin') {
-    ellipse(ctx, 0, -4.6, 7.2, 3.6, fur);
-    polygon(ctx, '#f2a13c', [[-1.6, 1.2], [1.8, 1.2], [0.1, 3.6]]);
-  }
-  if (!species) {
-    ellipse(ctx, -6.4, 1.2, 1.9, 2.4, pal.skin);
-    ellipse(ctx, 6.4, 1.2, 1.9, 2.4, pal.skin);
-    polygon(ctx, pal.hair, [[-6.6, -1.6], [-5.2, -4.6], [-3.4, -1.8], [-1.6, -4.8], [0.2, -1.9], [2, -4.6], [3.6, -1.7], [5.4, -4.2], [6.6, -1.4], [6.6, -3.4], [-6.6, -3.4]]);
-  }
-  if (species && body !== 'penguin') ellipse(ctx, 0.6, 2.4, 3.4, 2.5, muzzle);
-  ellipse(ctx, -3.6, 2.4, 1.9, 1.2, '#ff9d8a55');
-  ellipse(ctx, 3.8, 2.4, 1.9, 1.2, '#ff9d8a55');
-  if (p.eye === 'shut') {
-    ctx.strokeStyle = '#4a2c1c'; ctx.lineWidth = 1.1;
-    for (const ex of [-2.5, 2.9]) { ctx.beginPath(); ctx.arc(ex, -0.2, 1.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); }
-  } else if (p.eye === 'happy') {
-    ctx.strokeStyle = '#4a2c1c'; ctx.lineWidth = 1.2;
-    for (const ex of [-2.5, 2.9]) { ctx.beginPath(); ctx.arc(ex, 0.6, 1.6, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke(); }
-  } else {
-    for (const [ex, size] of [[-2.5, 1], [2.9, 1.08]] as const) {
-      ellipse(ctx, ex, -0.4, 1.85 * size, 2.25 * size, '#fffaf2');
-      ellipse(ctx, ex + 0.35, -0.25, 1.15 * size, 1.5 * size, '#3b2418');
-      ellipse(ctx, ex + 0.6, -0.85, 0.45, 0.55, '#ffffff');
-    }
-    if (!species) {
-      ctx.strokeStyle = '#5a3320'; ctx.lineWidth = 0.85; ctx.beginPath();
-      ctx.moveTo(-4.2, -3.2); ctx.lineTo(-1.2, -3.7);
-      ctx.moveTo(1.4, -3.7); ctx.lineTo(4.4, -3.1); ctx.stroke();
-    }
-  }
-  if (body === 'bear') ellipse(ctx, 0.6, 1.5, 1.3, 1.0, '#4a2c1c');
-  else if (body === 'fox') polygon(ctx, '#4a2c1c', [[-0.4, 1.2], [1.8, 1.2], [0.7, 2.5]]);
-  else if (body !== 'penguin') ellipse(ctx, 0.6, 1.4, 0.85, 0.7, pal.skinDark);
-  if (body !== 'penguin') {
-    ctx.strokeStyle = '#8a4a34'; ctx.lineWidth = 0.95; ctx.beginPath();
-    if (p.mouth === 'open') ctx.arc(0.8, 2.8, 1.9, 0.1 * Math.PI, 0.9 * Math.PI);
-    else ctx.arc(0.8, 2.4, 1.7, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.stroke();
-    if (p.mouth === 'open') ellipse(ctx, 0.8, 3.6, 1.2, 0.8, '#c4553f');
-  }
-
-  if (o.outfit === 'sprout' || o.outfit === 'sailor' || o.outfit === 'pilot') {
-    const g = ctx.createLinearGradient(0, -8, 0, -1);
-    if (o.outfit === 'sailor') { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe6ee'); }
-    else { g.addColorStop(0, pal.capLight); g.addColorStop(1, pal.cap); }
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(0, -3.2, 7.6, 5.4, 0, Math.PI, Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
-    roundRect(ctx, -7.8, -3.6, 15.6, 2.2, 1.1, o.outfit === 'sailor' ? '#2b4a7a' : pal.capDark);
-    ctx.fillStyle = o.outfit === 'sailor' ? '#dfe6ee' : pal.cap;
-    ctx.beginPath();
-    ctx.ellipse(5.6, -2.6, 5.2, 1.9, -0.12, 0, Math.PI * 2);
-    ctx.fill();
-    ellipse(ctx, 5.6, -3.1, 4.4, 1.1, o.outfit === 'sailor' ? '#ffffff' : pal.capLight);
-    if (o.outfit === 'sprout') {
-      star(ctx, -0.4, -5.6, 2.5, 1.1, pal.trim);
-      ellipse(ctx, -0.4, -5.6, 0.9, 0.9, '#fff8dc');
-      ctx.strokeStyle = '#3f8f4f'; ctx.lineWidth = 1.2; ctx.beginPath();
-      ctx.moveTo(-1.2, -8.2); ctx.quadraticCurveTo(-2.4, -11.4, -0.6, -12.6); ctx.stroke();
-      ellipse(ctx, 1.1, -12.4, 2.6, 1.5, '#5cb85c');
-      ellipse(ctx, 0.6, -12.8, 1.4, 0.8, '#8ede8a');
-    }
-    if (o.outfit === 'sailor') star(ctx, -0.4, -5.4, 2.2, 1.0, '#2b4a7a');
-    if (o.outfit === 'pilot') {
-      roundRect(ctx, -6.4, -6.6, 12.8, 3.2, 1.6, '#3a4656');
-      ellipse(ctx, -3.2, -5, 2.2, 1.5, '#8fe3ff');
-      ellipse(ctx, 3.2, -5, 2.2, 1.5, '#8fe3ff');
-      limb(ctx, -7.4, -1, -7.4, 2.6, 1.6, '#3a4656');
-      ellipse(ctx, -7.4, 3.2, 2.2, 2.2, '#3a4656');
-      limb(ctx, -7.4, 3.2, -2.5, 4.6, 1.2, '#3a4656');
-      ellipse(ctx, -2.2, 4.7, 1.2, 1.2, '#ffc247');
-    }
-  }
-  if (o.outfit === 'miner') {
-    const g = ctx.createLinearGradient(0, -9, 0, -1);
-    g.addColorStop(0, '#ffd98a');
-    g.addColorStop(1, '#e8a33c');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(0, -3.0, 7.8, 5.8, 0, Math.PI, Math.PI * 2);
-    ctx.closePath();
-    ctx.fill();
-    roundRect(ctx, -8.2, -3.6, 16.4, 2.4, 1.2, '#b3762a');
-    limb(ctx, 0, -8.6, 0, -3.6, 1.6, '#b3762a');
-    roundRect(ctx, 4.6, -6.4, 4.4, 3.6, 1.2, '#5a4a33');
-    ellipse(ctx, 7.0, -4.6, 1.7, 1.7, '#fff0b4');
-  }
-  if (o.outfit === 'carrier') {
-    roundRect(ctx, -7.4, -6.2, 14.8, 3.0, 1.5, '#8a5c3c');
-    ellipse(ctx, 0, -6.4, 3.2, 2.2, '#f4e3c2');
-    ellipse(ctx, -1, -6.8, 0.8, 0.6, '#c9a06a');
-    ellipse(ctx, 1.2, -6.2, 0.7, 0.5, '#c9a06a');
-  }
+  paintHead(ctx, { body, pal, eye: p.eye, mouth: p.mouth, outfit: o.outfit, lean: p.lean, seconds: o.seconds });
   ctx.restore();
   ctx.restore();
 

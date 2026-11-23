@@ -321,3 +321,10 @@
   .quest-node.current, .quest-stars .on { animation: none; }
   .qbtn { transition: none; }
 }
+.quest-buddies { margin: 14px 0 4px; }
+.quest-buddies h3 { margin: 0 0 8px; font-size: 1rem; color: var(--q-amber); }
+.quest-buddy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quest-world-intro { margin: 2px 0 6px; color: var(--q-dim); font-size: 0.82rem; }
+.quest-story { margin: 0 0 8px; }
+.quest-hook { margin: 6px 0 0; color: var(--q-amber); }
+@media (max-width: 760px) { .quest-buddy-row { grid-template-columns: 1fr; } }

@@ -4,6 +4,9 @@ import {
 } from '../shared/quest.js';
 import type { QuestInput, QuestRun } from '../shared/quest.js';
 import { QUEST_LEVELS, VIEW_HEIGHT, VIEW_WIDTH } from '../shared/quest-levels.js';
+import { isWorldFinale, worldStoryOf } from '../shared/quest-story.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import type { BuddyLooks } from '../shared/buddy.js';
 import type { QuestAudio } from './quest-audio.js';
 import { StarIcon } from './quest-map.js';
 import type { QuestRecord } from './quest-map.js';
@@ -41,6 +44,7 @@ interface Props {
   audio: QuestAudio;
   runKey: number;
   record?: QuestRecord;
+  looks?: BuddyLooks;
   onComplete: (index: number, stars: number, record: QuestRecord) => void;
   onExit: () => void;
   onNext: () => void;
@@ -73,7 +77,7 @@ function Heart({ filled }: { filled: boolean }) {
   </svg>;
 }
 
-export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, onComplete, onExit, onNext, onRetry }: Props) {
+export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, looks = DEFAULT_APPEARANCE, onComplete, onExit, onNext, onRetry }: Props) {
   const level = QUEST_LEVELS[levelIndex];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runRef = useRef<QuestRun | null>(null);
@@ -109,7 +113,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const run = createQuest(levelIndex, { coop, assist });
+    const run = createQuest(levelIndex, { coop, assist, looks });
     runRef.current = run;
     completedRef.current = false;
     inputsRef.current = [{ ...IDLE_INPUT }, { ...IDLE_INPUT }];
@@ -206,7 +210,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
       particles.clear();
       runRef.current = null;
     };
-  }, [levelIndex, coop, assist, runKey, audio, onComplete, setPhaseBoth, level.theme]);
+  }, [levelIndex, coop, assist, runKey, audio, onComplete, setPhaseBoth, level.theme, looks]);
 
   useEffect(() => {
     const apply = (code: string, pressed: boolean) => {
@@ -276,6 +280,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
   const hasNext = levelIndex < QUEST_LEVELS.length - 1;
 
   return <section className="quest-play">
+    <p className="story-bubble quest-story">{level.story}</p>
     <div className="quest-hud">
       <div className="quest-hud-level">
         <span>第 {levelIndex + 1} 关 · {level.world.split(' · ')[0]}</span>
@@ -346,6 +351,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
           <div><span>剩余心</span> {result.hearts}</div>
         </div>
         <p>{result.stars === 3 ? '满星通关，太厉害了！' : '收集六成金币并留 3 颗心，就能拿到满星。'}</p>
+        {isWorldFinale(level) && <p className="quest-hook">{worldStoryOf(level).hook}</p>}
         <div className="actions">
           {hasNext && <button className="qbtn primary" onClick={onNext}>下一关</button>}
           <button className={hasNext ? 'qbtn mint' : 'qbtn primary'} onClick={onRetry}>再玩一次</button>
@@ -358,7 +364,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
 
     {touch ? <div className="quest-pads">
       <div className="quest-pad p1">
-        <h4>{coop ? 'P1 前锋 · 芽芽' : '移动与跳跃'}</h4>
+        <h4>{coop ? `P1 前锋 · ${looks.left.name}` : '移动与跳跃'}</h4>
         <div className="quest-pad-row">
           <button className="quest-touch" aria-label="向左" {...pad(0, 'left')}>◀</button>
           <button className="quest-touch" aria-label="向右" {...pad(0, 'right')}>▶</button>
@@ -367,7 +373,7 @@ export function QuestStage({ levelIndex, coop, assist, audio, runKey, record, on
         </div>
       </div>
       {coop && <div className="quest-pad p2">
-        <h4>P2 后卫 · 豆豆</h4>
+        <h4>P2 后卫 · {looks.right.name}</h4>
         <div className="quest-pad-row">
           <button className="quest-touch" aria-label="P2 向左" {...pad(1, 'left')}>◀</button>
           <button className="quest-touch" aria-label="P2 向右" {...pad(1, 'right')}>▶</button>

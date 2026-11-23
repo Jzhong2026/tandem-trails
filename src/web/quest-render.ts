@@ -261,7 +261,7 @@ export function paintFrame(
 
   for (const player of run.players) {
     if (player.x + player.w < fromX - 60 || player.x > toX + 60) continue;
-    paintHero(ctx, player, seconds, run.coop);
+    paintHero(ctx, player, seconds, run.coop, run.looks);
   }
 
   particles.paint(ctx);
@@ -325,7 +325,7 @@ export function paintPreview(ctx: Context, run: QuestRun, terrain: HTMLCanvasEle
     if (enemy.x < run.cameraX - 60 || enemy.x > run.cameraX + VIEW_WIDTH + 60) continue;
     paintEnemy(ctx, enemy, seconds, run.theme);
   }
-  for (const player of run.players) paintHero(ctx, player, seconds, run.coop);
+  for (const player of run.players) paintHero(ctx, player, seconds, run.coop, run.looks);
   ctx.restore();
   paintWeather(ctx, run.theme, seconds, run.cameraX);
   ctx.restore();
