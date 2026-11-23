@@ -1,4 +1,4 @@
-import { createEgg, EGG_LAYOUTS, eggGroundY } from '../shared/egg.js';
+import { createEgg, EGG_LAYOUTS, eggGroundY, eggWindDir } from '../shared/egg.js';
 import type { EggLayout, EggView, EggWind } from '../shared/egg.js';
 import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { EggLevel } from '../shared/game-levels.js';
@@ -88,7 +88,12 @@ function paintLayout(ctx: Context, level: EggLevel) {
     signPost(ctx, from, eggGroundY(from, level), low === 'left' ? '抬左端' : '抬右端', '#27463e', '#ffedc9');
   }
   for (const wind of layout.winds) {
-    signPost(ctx, wind.from, eggGroundY(wind.from, level), '一起扶稳', '#2b5a5e', '#e8fbff');
+    signPost(ctx, wind.from, eggGroundY(wind.from, level), wind.gustPeriodMs ? '看旗轮流抬' : '一起扶稳', '#2b5a5e', '#e8fbff');
+  }
+  if (layout.ice) {
+    const mid = (layout.ice.from + layout.ice.to) / 2;
+    ellipse(ctx, mid, eggGroundY(mid, level) - 2, (layout.ice.to - layout.ice.from) / 2, 5, '#bfeef566');
+    signPost(ctx, layout.ice.from, eggGroundY(layout.ice.from, level), '冰面点按', '#2b5a5e', '#bfeef5');
   }
   const nestY = eggGroundY(layout.exit, level);
   ellipse(ctx, layout.exit + 5, nestY - 5, 38, 12, '#75533b');
@@ -102,20 +107,21 @@ function paintLayout(ctx: Context, level: EggLevel) {
   }
 }
 
-function windStreaks(ctx: Context, wind: EggWind, level: EggLevel, seconds: number, active: boolean) {
+function windStreaks(ctx: Context, wind: EggWind, level: EggLevel, seconds: number, active: boolean, elapsedMs: number) {
   const span = wind.to - wind.from;
   const gy = eggGroundY((wind.from + wind.to) / 2, level);
+  const dir = eggWindDir(wind, elapsedMs);
   ctx.save();
   ctx.strokeStyle = active ? '#e8fbffc9' : '#e8fbff59';
   ctx.lineWidth = active ? 2.4 : 1.6;
   ctx.lineCap = 'round';
   for (let i = 0; i < 8; i++) {
     const t = ((seconds * (62 + i * 13) + i * 47) % span + span) % span;
-    const x = wind.dir > 0 ? wind.from + t : wind.to - t;
+    const x = dir > 0 ? wind.from + t : wind.to - t;
     const y = gy - 26 - (i * 19) % 56;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + wind.dir * 15, y - 5, x + wind.dir * 30, y);
+    ctx.quadraticCurveTo(x + dir * 15, y - 5, x + dir * 30, y);
     ctx.stroke();
   }
   ctx.restore();
@@ -126,7 +132,7 @@ function paintRun(ctx: Context, run: EggView, seat: Seat, looks: Looks) {
   const layout: EggLayout = EGG_LAYOUTS[level];
   const seconds = animationSeconds(run.elapsedMs);
   for (const wind of layout.winds) {
-    windStreaks(ctx, wind, level, seconds, run.x >= wind.from && run.x < wind.to);
+    windStreaks(ctx, wind, level, seconds, run.x >= wind.from && run.x < wind.to, run.elapsedMs);
   }
   const { x } = run;
   const y = eggGroundY(x, level);

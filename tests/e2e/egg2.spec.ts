@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { EGG, EGG2, isEggView } from '../../src/shared/egg.js';
+import { EGG, EGG2, eggWindward, isEggView } from '../../src/shared/egg.js';
 import type { EggView } from '../../src/shared/egg.js';
 import { readyTogether, withCoop } from './co-op.js';
 
@@ -45,23 +45,11 @@ test('a family advances to the gust walkway, braces through the wind together, a
         await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       }
     }
-    async function braceUntil(until: (run: EggView) => boolean, text: string) {
-      const touchPoints = [];
-      for (const [id, name] of ['向右走', '按住抬高担架'].entries()) {
-        const point = await guestBox(name);
-        touchPoints.push({ id, ...point });
-      }
-      await host.keyboard.down('e');
-      await host.keyboard.down('d');
-      try {
-        await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints });
-        await waitFor(until);
-        await expect(host.getByText(text)).toBeVisible();
-      } finally {
-        await host.keyboard.up('d');
-        await host.keyboard.up('e');
-        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-      }
+    async function gustCross(windIndex: number, until: (run: EggView) => boolean) {
+      const wind = EGG2.winds[windIndex];
+      await waitFor(run => run.elapsedMs % wind.gustPeriodMs! < 150);
+      const windward = eggWindward(wind, egg()!.elapsedMs);
+      await move(windward, until);
     }
 
     // First level: trade the lift on each slope, then advance.
@@ -82,24 +70,23 @@ test('a family advances to the gust walkway, braces through the wind together, a
     await move(null, run => run.x >= EGG2.slopes[0].from - 12);
     await move('left', run => run.x >= EGG2.slopes[0].to);
 
-    // Walking into the wind unbraced is unsafe; stopping shows the brace prompt.
+    // Walking into the gust unbraced is unsafe; stopping shows the windward prompt.
     await move(null, run => run.x >= EGG2.winds[0].from + 3);
-    await expect(host.getByText('风口来了，按住抬高按钮，和队友一起扶稳')).toBeVisible();
-    await expect(guest.getByText('风口来了，按住抬高按钮，和队友一起扶稳')).toBeVisible();
+    await expect(host.getByText(/风从(左|右)边来/)).toBeVisible();
+    await expect(guest.getByText(/风从(左|右)边来/)).toBeVisible();
     await move(null, run => run.drops === 1);
     expect(egg()?.x).toBe(EGG2.winds[0].pad);
     await expect(guest.getByText('龙蛋落到软垫上了，从这里重新抬。')).toBeVisible();
     await waitFor(run => run.recoveryMs === 0);
 
-    // Both brace together to cross the wind slowly and steadily.
-    await braceUntil(run => run.x >= EGG2.winds[0].from + 20, '两人扶稳了，顶风慢慢往前走');
-    await move('both', run => run.x >= EGG2.winds[0].to);
+    // The windward end lifts while the other rests; trade turns as the gust flips.
+    await gustCross(0, run => run.x >= EGG2.winds[0].to);
 
-    // Down slope, then the second wind gap, then the nest.
+    // Down slope, ice, then the second gust gap, then the nest.
     await move(null, run => run.x >= EGG2.slopes[1].from - 12);
     await move('right', run => run.x >= EGG2.slopes[1].to);
     await move(null, run => run.x >= EGG2.winds[1].from - 8);
-    await move('both', run => run.x >= EGG2.winds[1].to);
+    await gustCross(1, run => run.x >= EGG2.winds[1].to);
     await move(null, run => run.finished);
 
     await expect(host.getByRole('heading', { name: '龙蛋回到巢里了！' })).toBeVisible();
