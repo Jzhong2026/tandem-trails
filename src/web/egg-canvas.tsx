@@ -1,14 +1,16 @@
 import { createEgg, EGG_LAYOUTS, eggGroundY } from '../shared/egg.js';
 import type { EggLayout, EggView, EggWind } from '../shared/egg.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { EggLevel } from '../shared/game-levels.js';
 import type { Seat } from '../shared/protocol.js';
+import { buddyScale, CHAPTER_OUTFIT, paintBuddy } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
+import type { Looks } from './panorama-canvas.js';
 import { interpolateEgg } from './panorama-motion.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createEgg();
-const roleColors = { left: '#edac73', right: '#b5e5d4' };
 
 function ellipse(ctx: Context, x: number, y: number, rx: number, ry: number, color: string) {
   ctx.fillStyle = color;
@@ -119,7 +121,7 @@ function windStreaks(ctx: Context, wind: EggWind, level: EggLevel, seconds: numb
   ctx.restore();
 }
 
-function paintRun(ctx: Context, run: EggView, seat: Seat) {
+function paintRun(ctx: Context, run: EggView, seat: Seat, looks: Looks) {
   const level = run.level;
   const layout: EggLayout = EGG_LAYOUTS[level];
   const seconds = animationSeconds(run.elapsedMs);
@@ -136,18 +138,16 @@ function paintRun(ctx: Context, run: EggView, seat: Seat) {
       const side = role === 'left' ? -1 : 1;
       const playerX = x + side * 49;
       const feet = eggGroundY(playerX, level);
-      ellipse(ctx, playerX, feet - 12, 10, 14, roleColors[role]);
-      ellipse(ctx, playerX, feet - 30, 9, 9, '#f4dbb0');
       const handX = x + Math.cos(angle) * side * 43;
       const handY = boardY + Math.sin(angle) * side * 43;
-      ctx.strokeStyle = roleColors[role];
-      ctx.lineWidth = 5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(playerX, feet - 16);
-      ctx.lineTo(handX, handY);
-      ctx.stroke();
-      if (role === seat) ellipse(ctx, playerX, feet - 46, 3, 3, '#fff4d6');
+      paintBuddy(ctx, {
+        x: playerX, feet, scale: buddyScale(looks[role].size),
+        facing: side === -1 ? 1 : -1,
+        appearance: looks[role], outfit: CHAPTER_OUTFIT.egg,
+        pose: 'carry', phase: (seconds * 1.6) % 1, seconds,
+        reach: { x: handX, y: handY }, reachBack: { x: handX, y: handY },
+        tag: looks[role].name, tagColor: role === seat ? '#e8503ae6' : '#3a3355e6',
+      });
       if (run.raised[role]) ellipse(ctx, handX, handY, 4, 4, '#f5dfac');
     }
   }
@@ -191,8 +191,10 @@ const paintEggLayout = (ctx: Context) => paintLayout(ctx, 'egg');
 const paintGustLayout = (ctx: Context) => paintLayout(ctx, 'egg2');
 const focusX = (run: EggView) => run.x;
 
-export function EggCanvas({ run = preview, seat, frozen = false }: { run?: EggView; seat: Seat; frozen?: boolean }) {
+export function EggCanvas({ run = preview, seat, frozen = false, looks = DEFAULT_APPEARANCE }: {
+  run?: EggView; seat: Seat; frozen?: boolean; looks?: Looks;
+}) {
   return <PanoramaCanvas run={run} seat={seat} world={EGG_LAYOUTS[run.level]} focusX={focusX}
     paintLayout={run.level === 'egg2' ? paintGustLayout : paintEggLayout} paintRun={paintRun}
-    theme="egg-canvas" frozen={frozen} interpolate={interpolateEgg} />;
+    theme="egg-canvas" frozen={frozen} interpolate={interpolateEgg} looks={looks} />;
 }

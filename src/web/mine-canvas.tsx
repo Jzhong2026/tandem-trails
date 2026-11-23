@@ -1,13 +1,15 @@
 import { createMine, minerY, MINE, MINE2 } from '../shared/mine.js';
 import type { MineView } from '../shared/mine.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
+import { buddyScale, CHAPTER_OUTFIT, paintBuddy } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
+import type { Looks } from './panorama-canvas.js';
 import { interpolateMine } from './panorama-motion.js';
 import { animationSeconds, halo as glow, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createMine();
-const colors = { left: '#f1b675', right: '#8bddd0' } as const;
 
 function block(ctx: Context, x: number, y: number, w: number, h: number, color: string, r = 3) {
   ctx.fillStyle = color;
@@ -122,22 +124,18 @@ function firefly(ctx: Context, x: number, y: number, seconds: number) {
   block(ctx, fx - 3, fy - 3, 6, 7, '#fff2ae', 3);
 }
 
-function paintMiner(ctx: Context, x: number, y: number, color: string, isSeat: boolean) {
-  const beam = ctx.createLinearGradient(x + 8, 0, x + 92, 0);
-  beam.addColorStop(0, '#ffe5a06b');
-  beam.addColorStop(1, '#ffdca300');
-  ctx.fillStyle = beam;
-  ctx.beginPath();
-  ctx.moveTo(x + 10, y - 26);
-  ctx.lineTo(x + 92, y - 40);
-  ctx.lineTo(x + 92, y + 1);
-  ctx.fill();
-  glow(ctx, x + 12, y - 25, 29, '#ffdc833d');
-  block(ctx, x - 9, y - 19, 18, 18, color, 5);
-  block(ctx, x - 10, y - 31, 20, 13, color, 6);
-  block(ctx, x - 7, y - 24, 14, 6, '#3c3444', 3);
-  block(ctx, x + 6, y - 28, 7, 6, '#fff0b4');
-  if (isSeat) block(ctx, x - 2, y - 42, 4, 6, '#fff1ca');
+const lastX: Record<Seat, number> = { left: -1, right: -1 };
+
+function paintMinerBuddy(ctx: Context, run: MineView, role: Seat, seat: Seat, looks: Looks, seconds: number) {
+  const x = run.players[role].x;
+  const moving = Math.abs(x - lastX[role]) > 0.15;
+  lastX[role] = x;
+  paintBuddy(ctx, {
+    x, feet: minerY(run, role), scale: buddyScale(looks[role].size),
+    appearance: looks[role], outfit: CHAPTER_OUTFIT.mine,
+    pose: moving ? 'walk' : 'idle', phase: (seconds * 1.6) % 1, seconds,
+    tag: looks[role].name, tagColor: role === seat ? '#e8503ae6' : '#3a3355e6',
+  });
 }
 
 function paintMineLayout(ctx: Context) {
@@ -155,7 +153,7 @@ function paintMineLayout(ctx: Context) {
   block(ctx, 0, 378, width, 22, '#1b182a', 0);
 }
 
-function paintMineRun(ctx: Context, run: MineView, seat: Seat) {
+function paintMineRun(ctx: Context, run: MineView, seat: Seat, looks: Looks) {
   const { bridge, lift, lowerY, upperY, fireflies, exit } = MINE;
   const seconds = animationSeconds(run.elapsedMs);
   cable(ctx, bridge.switchX, bridge.start, lowerY, upperY, run.bridgeOpen, '#b4f29c', seconds);
@@ -175,7 +173,7 @@ function paintMineRun(ctx: Context, run: MineView, seat: Seat) {
     if (!run.players[role].firefly) {
       firefly(ctx, fireflies[role], (role === 'left' ? lowerY : upperY) - 34, seconds);
     }
-    paintMiner(ctx, run.players[role].x, minerY(run, role), colors[role], role === seat);
+    paintMinerBuddy(ctx, run, role, seat, looks, seconds);
   }
 }
 
@@ -191,7 +189,7 @@ function paintMine2Layout(ctx: Context) {
   block(ctx, 0, 378, width, 22, '#1b182a', 0);
 }
 
-function paintMine2Run(ctx: Context, run: MineView, seat: Seat) {
+function paintMine2Run(ctx: Context, run: MineView, seat: Seat, looks: Looks) {
   const { bridge1, bridge2, lowerY, upperY, fireflies, exit } = MINE2;
   const seconds = animationSeconds(run.elapsedMs);
   cable(ctx, bridge1.switchX, bridge1.start, lowerY, upperY, run.bridgeOpen, '#b4f29c', seconds);
@@ -217,7 +215,7 @@ function paintMine2Run(ctx: Context, run: MineView, seat: Seat) {
     if (!run.players[role].firefly) {
       firefly(ctx, fireflies[role], (role === 'left' ? lowerY : upperY) - 34, seconds);
     }
-    paintMiner(ctx, run.players[role].x, minerY(run, role), colors[role], role === seat);
+    paintMinerBuddy(ctx, run, role, seat, looks, seconds);
   }
 }
 
@@ -228,7 +226,10 @@ function focusX(run: MineView, seat: Seat) {
   return run.players[seat].x;
 }
 
-export function MineCanvas({ run = preview, seat, frozen = false }: { run?: MineView; seat: Seat; frozen?: boolean }) {
+export function MineCanvas({ run = preview, seat, frozen = false, looks = DEFAULT_APPEARANCE }: {
+  run?: MineView; seat: Seat; frozen?: boolean; looks?: Looks;
+}) {
   return <PanoramaCanvas run={run} seat={seat} world={run.level === 'mine2' ? MINE2 : MINE} focusX={focusX}
-    paintLayout={paintLayouts[run.level]} paintRun={paintRuns[run.level]} theme="mine-canvas" frozen={frozen} interpolate={interpolateMine} />;
+    paintLayout={paintLayouts[run.level]} paintRun={paintRuns[run.level]} theme="mine-canvas" frozen={frozen}
+    interpolate={interpolateMine} looks={looks} />;
 }

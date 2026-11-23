@@ -1,6 +1,8 @@
 import { FOG_FLAGS, FOG_GATE, RIVER_COURSES, RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
 import type { Paddles, RiverView } from '../shared/river.js';
+import { CHAPTER_OUTFIT, paintBuddy, paintNameTag } from './buddy.js';
+import type { Looks } from './panorama-canvas.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
@@ -212,7 +214,7 @@ function paintDuck(ctx: Context, x: number, y: number, size = 1) {
   ctx.restore();
 }
 
-export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
+export function paintActors(ctx: Context, run: RiverView, paddles: Paddles, looks: Looks) {
   const seconds = animationSeconds(run.elapsedMs);
   const duck = RIVER_COURSES[run.level].duck;
   if (duck && !run.rescued) {
@@ -256,10 +258,23 @@ export function paintActors(ctx: Context, run: RiverView, paddles: Paddles) {
   ellipse(ctx, 0, -1, 28, 11.5, '#e6ab6b');
   ellipse(ctx, 0, 0, 23, 8.4, '#a55a3d');
   roundRect(ctx, -8, -9, 4, 18, 1, '#efbd86');
-  for (const [i, x] of [-14, 0].entries()) {
-    ellipse(ctx, x, 0, 5.4, 6.3, i ? '#96e6cc' : '#ffd199');
-    ellipse(ctx, x + 1, -1, 3.3, 3.7, '#69504a');
+  for (const [i, x] of [-15, 1].entries()) {
+    const role = i === 0 ? 'left' : 'right';
+    const side = i === 0 ? -1 : 1;
+    const stroke = paddles[i] ? side * (-.35 + .43 * Math.sin(seconds * 8)) : side * .12;
+    const gripX = -6 * Math.cos(stroke) - side * 12 * Math.sin(stroke);
+    const gripY = -6 * Math.sin(stroke) + side * 12 * Math.cos(stroke);
+    paintBuddy(ctx, {
+      x, feet: 3, scale: looks[role].size === 'big' ? 0.95 : 0.8,
+      appearance: looks[role], outfit: CHAPTER_OUTFIT.river,
+      pose: 'paddle', phase: (seconds * 1.3) % 1, seconds,
+      reach: { x: gripX, y: gripY },
+    });
   }
   if (run.rescued) paintDuck(ctx, 13, 0, 0.67);
   ctx.restore();
+  for (const [i, x] of [-20, 16].entries()) {
+    const role = i === 0 ? 'left' : 'right';
+    paintNameTag(ctx, run.x + x, run.y - 52, looks[role].name, i === 0 ? '#e8503ae6' : '#3fbf8fe6');
+  }
 }

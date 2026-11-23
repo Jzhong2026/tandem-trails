@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import { initialRiverView } from '../shared/river.js';
 import type { Paddles, RiverView } from '../shared/river.js';
 import { RIVER_SIZE } from '../shared/river-levels.js';
 import type { Channel, Flag, RiverLevel } from '../shared/river-levels.js';
+import type { Looks } from './panorama-canvas.js';
 import { paintActors, paintFogClues, paintRiver } from './river-art.js';
 
 const idlePaddles: Paddles = [false, false];
@@ -13,14 +15,15 @@ interface Props {
   paddles?: Paddles;
   channel?: Channel | null;
   flag?: Flag | null;
+  looks?: Looks;
 }
 
-export function RiverCanvas({ level, run, paddles = idlePaddles, channel = null, flag = null }: Props) {
+export function RiverCanvas({ level, run, paddles = idlePaddles, channel = null, flag = null, looks = DEFAULT_APPEARANCE }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ run: run ?? initialRiverView(level), paddles, flag, channel });
+  const latest = useRef({ run: run ?? initialRiverView(level), paddles, flag, channel, looks });
   useEffect(() => {
-    latest.current = { run: run ?? initialRiverView(level), paddles, flag, channel };
-  }, [level, run, paddles, flag, channel]);
+    latest.current = { run: run ?? initialRiverView(level), paddles, flag, channel, looks };
+  }, [level, run, paddles, flag, channel, looks]);
 
   useEffect(() => {
     const target = canvas.current!;
@@ -72,7 +75,7 @@ export function RiverCanvas({ level, run, paddles = idlePaddles, channel = null,
         ctx!.setTransform(scale, 0, 0, scale, -camera * scale, 0);
         ctx!.drawImage(scenery, 0, 0);
         if (level === 'fog') paintFogClues(ctx!, next.channel, next.run.rescued ? null : next.flag);
-        paintActors(ctx!, displayed, next.paddles);
+        paintActors(ctx!, displayed, next.paddles, next.looks);
         previous = next;
         resized = false;
       }

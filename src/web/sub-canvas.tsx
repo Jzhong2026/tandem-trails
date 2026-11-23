@@ -1,13 +1,15 @@
 import { createSub, SUB } from '../shared/sub.js';
 import type { SubView } from '../shared/sub.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
+import { CHAPTER_OUTFIT, paintBuddy, paletteOf } from './buddy.js';
 import { PanoramaCanvas } from './panorama-canvas.js';
+import type { Looks } from './panorama-canvas.js';
 import { interpolateSub } from './panorama-motion.js';
 import { animationSeconds, halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
 const preview = createSub();
-const colors = { left: '#f1b675', right: '#8bddd0' } as const;
 
 function ellipse(ctx: Context, x: number, y: number, rx: number, ry: number, fill: string | CanvasGradient) {
   ctx.fillStyle = fill;
@@ -228,7 +230,7 @@ function airBubble(ctx: Context, x: number, y: number, seconds: number, index: n
   ellipse(ctx, x - 4, y + bob - 4, 3, 2.2, '#ffffffcc');
 }
 
-function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number) {
+function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number, looks: Looks) {
   const { x, y } = run;
   ctx.save();
   ctx.translate(x, y + Math.sin(seconds * 1.6) * 1.5);
@@ -262,13 +264,20 @@ function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number) {
   ctx.fillStyle = '#8bddd0';
   ctx.fillRect(-3, -27, 9, 4);
   for (const [px, role] of [[-9, 'left'], [9, 'right']] as const) {
-    ellipse(ctx, px, -1, 7, 7, colors[role]);
-    ellipse(ctx, px, -1, 5, 5, '#16323f');
-    ellipse(ctx, px, 0, 3.2, 3.6, '#f4dbb0');
-    ellipse(ctx, px + 1.2, -1, .8, 1, '#3a3540');
+    ellipse(ctx, px, -1, 7, 7, '#16323f');
+    const scale = looks[role].size === 'big' ? 0.42 : 0.36;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, -1, 5.6, 0, Math.PI * 2);
+    ctx.clip();
+    paintBuddy(ctx, {
+      x: px, feet: -1 + 28.5 * scale, scale,
+      appearance: looks[role], outfit: CHAPTER_OUTFIT.sub, pose: 'bust', seconds,
+    });
+    ctx.restore();
     ellipse(ctx, px - 2, -3.5, 1.4, 1, '#bfeef5aa');
   }
-  ellipse(ctx, 0, -33, 3.2, 3.2, colors[seat]);
+  ellipse(ctx, 0, -33, 3.2, 3.2, paletteOf(looks[seat]).cap);
   if (run.recoveryMs > 0) {
     for (let i = 0; i < 3; i++) {
       const angle = seconds * 4 + i * 2.1;
@@ -279,7 +288,7 @@ function submarine(ctx: Context, run: SubView, seat: Seat, seconds: number) {
   if (run.rescued && !run.finished) seahorse(ctx, x - 46, y - 4, seconds, .8);
 }
 
-function paintRun(ctx: Context, run: SubView, seat: Seat) {
+function paintRun(ctx: Context, run: SubView, seat: Seat, looks: Looks) {
   const seconds = animationSeconds(run.elapsedMs);
   for (let i = 0; i < 6; i++) {
     const x = 90 + i * 160;
@@ -295,12 +304,15 @@ function paintRun(ctx: Context, run: SubView, seat: Seat) {
     if (!run.bubbles[index]) airBubble(ctx, bubble.x, bubble.y, seconds, index);
   });
   if (!run.rescued) seahorse(ctx, SUB.seahorse.x, SUB.seahorse.y, seconds);
-  submarine(ctx, run, seat, seconds);
+  submarine(ctx, run, seat, seconds, looks);
 }
 
 const focusX = (run: SubView) => run.x;
 
-export function SubCanvas({ run = preview, seat, frozen = false }: { run?: SubView; seat: Seat; frozen?: boolean }) {
+export function SubCanvas({ run = preview, seat, frozen = false, looks = DEFAULT_APPEARANCE }: {
+  run?: SubView; seat: Seat; frozen?: boolean; looks?: Looks;
+}) {
   return <PanoramaCanvas run={run} seat={seat} world={SUB} focusX={focusX}
-    paintLayout={paintLayout} paintRun={paintRun} theme="sub-canvas" frozen={frozen} interpolate={interpolateSub} />;
+    paintLayout={paintLayout} paintRun={paintRun} theme="sub-canvas" frozen={frozen}
+    interpolate={interpolateSub} looks={looks} />;
 }

@@ -1,22 +1,25 @@
 import { useEffect, useRef } from 'react';
+import type { Appearance } from '../shared/buddy.js';
 import type { Seat } from '../shared/protocol.js';
 
 type Context = CanvasRenderingContext2D;
+export type Looks = Record<Seat, Appearance>;
 
-export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paintRun, theme, frozen, interpolate }: {
+export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paintRun, theme, frozen, interpolate, looks }: {
   run: T;
   seat: Seat;
   world: { width: number; height: number };
   focusX: (run: T, seat: Seat) => number;
   paintLayout: (ctx: Context) => void;
-  paintRun: (ctx: Context, run: T, seat: Seat) => void;
+  paintRun: (ctx: Context, run: T, seat: Seat, looks: Looks) => void;
   theme: string;
   frozen: boolean;
   interpolate: (from: T, to: T, blend: number) => T;
+  looks: Looks;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ run, frozen });
-  useEffect(() => { latest.current = { run, frozen }; }, [run, frozen]);
+  const latest = useRef({ run, frozen, looks });
+  useEffect(() => { latest.current = { run, frozen, looks }; }, [run, frozen, looks]);
 
   useEffect(() => {
     const target = canvas.current!;
@@ -56,7 +59,7 @@ export function PanoramaCanvas<T>({ run, seat, world, focusX, paintLayout, paint
         const offset = Math.max(0, Math.min(world.width - viewWidth, focusX(displayed, seat) - viewWidth * .38));
         ctx!.setTransform(scale, 0, 0, scale, -offset * scale, 0);
         ctx!.drawImage(scenery, 0, 0);
-        paintRun(ctx!, displayed, seat);
+        paintRun(ctx!, displayed, seat, next.looks);
         drawn = displayed;
       }
       frame = requestAnimationFrame(update);

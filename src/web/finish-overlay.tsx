@@ -2,11 +2,13 @@ import { useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import type { Looks } from './panorama-canvas.js';
 import { paintFinish } from './finish-art.js';
 
 const durationMs = 2100;
 
-function FinishIllustration({ level }: { level: GameLevel }) {
+function FinishIllustration({ level, looks }: { level: GameLevel; looks: Looks }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     const target = canvas.current!;
@@ -20,7 +22,7 @@ function FinishIllustration({ level }: { level: GameLevel }) {
       ctx!.setTransform(1, 0, 0, 1, 0, 0);
       ctx!.clearRect(0, 0, target.width, target.height);
       ctx!.setTransform(3, 0, 0, 3, target.width / 2, target.height / 2);
-      paintFinish(ctx!, level, time);
+      paintFinish(ctx!, level, time, looks);
       if (time < 1) frame = requestAnimationFrame(draw);
     }
     function settle() {
@@ -35,16 +37,16 @@ function FinishIllustration({ level }: { level: GameLevel }) {
       cancelAnimationFrame(frame);
       motion.removeEventListener('change', settle);
     };
-  }, [level]);
+  }, [level, looks]);
   return <canvas className="finish-art" width={780} height={480} ref={canvas} aria-hidden="true" />;
 }
 
-export function FinishOverlay({ level, title, summary, children }: {
-  level: GameLevel; title: string; summary: string; children: ReactNode;
+export function FinishOverlay({ level, title, summary, children, looks = DEFAULT_APPEARANCE }: {
+  level: GameLevel; title: string; summary: string; children: ReactNode; looks?: Looks;
 }) {
   const theme = isEggLevel(level) ? 'egg' : isMineLevel(level) ? 'mine' : isSubLevel(level) ? 'sub' : 'river';
   return <div className={`finish-scene finish-${theme}`}>
-    <FinishIllustration level={level} />
+    <FinishIllustration level={level} looks={looks} />
     <div className="finish-result">
       <h2>{title}</h2>
       <p>{summary}</p>

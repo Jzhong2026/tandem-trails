@@ -4,6 +4,7 @@ import type { MineView } from '../shared/mine.js';
 import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { MineCanvas } from './mine-canvas.js';
+import { looksOf } from './buddy.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
@@ -77,9 +78,9 @@ export function MineStage({ run, phase, seat, game }: {
       <span className="mine-count">萤火虫 {fireflies} / 2</span>
     </div>
     <div className="stage-scene">
-      <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} />
+      <MineCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <FinishOverlay level={run.level} title="一起走出矿洞了！"
+      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} title="一起走出矿洞了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 点亮两盏萤火虫灯`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
         <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>

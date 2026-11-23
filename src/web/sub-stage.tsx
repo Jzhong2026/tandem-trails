@@ -4,6 +4,7 @@ import type { SubView } from '../shared/sub.js';
 import type { RoomPhase, Seat } from '../shared/protocol.js';
 import type { useRoom } from './use-room.js';
 import { SubCanvas } from './sub-canvas.js';
+import { looksOf } from './buddy.js';
 import { MovementDeck } from './movement-deck.js';
 import { FinishOverlay } from './finish-overlay.js';
 import { PauseOverlay } from './pause-overlay.js';
@@ -39,9 +40,9 @@ export function SubStage({ run, phase, seat, game }: {
       <span className="sub-count">气泡 {bubbles} / 2{run.rescued ? ' · 小海马已上艇' : ''}</span>
     </div>
     <div className="stage-scene">
-      <SubCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} />
+      <SubCanvas run={run} seat={seat} frozen={phase !== 'playing' || game.connection !== 'online'} looks={looksOf(game.room)} />
       {phase === 'paused' && <PauseOverlay />}
-      {phase === 'finished' && <FinishOverlay level={run.level} title="小海马到珊瑚站了！"
+      {phase === 'finished' && <FinishOverlay level={run.level} looks={looksOf(game.room)} title="小海马到珊瑚站了！"
         summary={`用时 ${Math.floor(run.elapsedMs / 1000)} 秒 · 碰撞 ${run.collisions} 次 · 气泡 ${bubbles} / 2`}>
         {next && <button className="primary" disabled={disabled} onClick={() => game.next(run.level)}>下一关</button>}
         <button className={next ? 'secondary' : 'primary'} disabled={disabled} onClick={game.replay}>再玩一次</button>

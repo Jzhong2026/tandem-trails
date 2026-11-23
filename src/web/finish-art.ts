@@ -1,5 +1,8 @@
 import { isEggLevel, isMineLevel, isSubLevel } from '../shared/game-levels.js';
 import type { GameLevel } from '../shared/game-levels.js';
+import { DEFAULT_APPEARANCE } from '../shared/buddy.js';
+import { CHAPTER_OUTFIT, paintBuddy } from './buddy.js';
+import type { Looks } from './panorama-canvas.js';
 import { halo, polygon } from './scenery.js';
 
 type Context = CanvasRenderingContext2D;
@@ -33,7 +36,7 @@ function sparkle(ctx: Context, x: number, y: number, size: number, color: string
   [x - size * .8, y], [x - size * .25, y - size * .24]]);
 }
 
-function dock(ctx: Context, time: number, rescued: boolean) {
+function dock(ctx: Context, time: number, rescued: boolean, looks: Looks) {
   const arrive = progress(time, 0, .49);
   const hop = progress(time, .43, .78);
   oval(ctx, 0, 40, 121, 16, '#123e4b');
@@ -58,12 +61,12 @@ function dock(ctx: Context, time: number, rescued: boolean) {
   shape(ctx, '#88503e', 'M -43 17 Q -12 29 42 12 Q 32 45 -14 42 Q -39 39 -43 17 Z');
   shape(ctx, '#ffd39a', 'M -45 13 Q -9 23 44 8 L 42 17 Q 5 34 -35 26 Z');
   line(ctx, '#bd8060', 1.4, 'M -30 30 Q -5 40 25 26 M -22 34 Q -1 41 13 35');
-  for (const [x, coat] of [[-22, '#e9a16b'], [0, '#8ad5bd']] as const) {
-    oval(ctx, x, 9, 8, 11, coat);
-    oval(ctx, x + 1, -2, 6, 7, '#edc09c');
-    shape(ctx, '#494454', `M ${x - 6} -2 q -1 -12 9 -7 l 4 6 l -7 -2 z`);
-    oval(ctx, x + 4, -1, .85, 1.1, '#3a3540');
-    line(ctx, coat, 4, `M ${x + 3} 8 l 6 -4 l 3 ${-3 - arrive * 6}`);
+  for (const [i, x] of [-22, 0].entries()) {
+    const role = i === 0 ? 'left' : 'right';
+    paintBuddy(ctx, {
+      x, feet: 20, scale: looks[role].size === 'big' ? 0.8 : 0.66,
+      appearance: looks[role], outfit: CHAPTER_OUTFIT.river, pose: 'win', seconds: time * 2.1,
+    });
   }
   ctx.restore();
   if (rescued) {
@@ -164,7 +167,7 @@ function hatch(ctx: Context, time: number) {
   ctx.restore();
 }
 
-function coral(ctx: Context, time: number) {
+function coral(ctx: Context, time: number, looks: Looks) {
   const arrive = progress(time, 0, .5);
   const swim = progress(time, .45, .85);
   oval(ctx, 0, 49, 96, 11, '#0d3040');
@@ -195,11 +198,19 @@ function coral(ctx: Context, time: number) {
   ctx.fillRect(-3, -23, 6, 10);
   ctx.fillStyle = '#8bddd0';
   ctx.fillRect(-3, -26, 9, 4);
-  for (const [px, coat] of [[-9, '#f1b675'], [9, '#8bddd0']] as const) {
-    oval(ctx, px, -1, 6.6, 6.6, coat);
-    oval(ctx, px, -1, 4.6, 4.6, '#16323f');
-    oval(ctx, px, 0, 3, 3.4, '#f4dbb0');
-    oval(ctx, px + 1.1, -1, .8, 1, '#3a3540');
+  for (const [i, px] of [-9, 9].entries()) {
+    const role = i === 0 ? 'left' : 'right';
+    oval(ctx, px, -1, 6.6, 6.6, '#16323f');
+    const scale = looks[role].size === 'big' ? 0.4 : 0.34;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, -1, 5.2, 0, Math.PI * 2);
+    ctx.clip();
+    paintBuddy(ctx, {
+      x: px, feet: -1 + 28.5 * scale, scale,
+      appearance: looks[role], outfit: CHAPTER_OUTFIT.sub, pose: 'bust', seconds: time * 2.1,
+    });
+    ctx.restore();
   }
   ctx.restore();
   ctx.save();
@@ -222,7 +233,7 @@ function coral(ctx: Context, time: number) {
   ctx.globalAlpha = 1;
 }
 
-export function paintFinish(ctx: Context, level: GameLevel, time: number) {
+export function paintFinish(ctx: Context, level: GameLevel, time: number, looks: Looks = DEFAULT_APPEARANCE) {
   const mine = isMineLevel(level);
   const egg = isEggLevel(level);
   const sub = isSubLevel(level);
@@ -239,7 +250,7 @@ export function paintFinish(ctx: Context, level: GameLevel, time: number) {
   }
   if (mine) grotto(ctx, time);
   else if (egg) hatch(ctx, time);
-  else if (sub) coral(ctx, time);
-  else dock(ctx, time, level !== 'practice');
+  else if (sub) coral(ctx, time, looks);
+  else dock(ctx, time, level !== 'practice', looks);
   ctx.restore();
 }
