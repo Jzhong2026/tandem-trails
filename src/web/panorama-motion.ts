@@ -12,9 +12,11 @@ export function interpolateMine(from: MineView, to: MineView, blend: number): Mi
   const leftX = approach(from.players.left.x, to.players.left.x, blend, .15);
   const rightX = approach(from.players.right.x, to.players.right.x, blend, .15);
   const liftProgress = approach(from.liftProgress, to.liftProgress, blend, .001);
-  if (leftX === to.players.left.x && rightX === to.players.right.x && liftProgress === to.liftProgress) return to;
+  const cartX = approach(from.cartX, to.cartX, blend, .15);
+  if (leftX === to.players.left.x && rightX === to.players.right.x
+    && liftProgress === to.liftProgress && cartX === to.cartX) return to;
   return {
-    ...to, liftProgress,
+    ...to, liftProgress, cartX,
     players: {
       left: { ...to.players.left, x: leftX },
       right: { ...to.players.right, x: rightX },

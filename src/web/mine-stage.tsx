@@ -40,7 +40,17 @@ function doubleBridgeGoal(run: MineView, seat: Seat) {
   const { bridge1, bridge2 } = MINE2;
   if (run.finished) return '两盏萤火虫灯都点亮了';
   if (run.bridge2Crossed) {
-    return minerAtExit(run, seat) ? '你已到出口，等队友过来' : '沿自己的路往右，一起到出口';
+    if (minerAtExit(run, seat)) return '你已到出口，等队友过来';
+    const { cart } = MINE2;
+    if (seat === 'right') {
+      if (run.cartX >= cart.to) return '矿车到站了，往右走到出口';
+      return run.players.right.x >= cart.from - 2 ? '站在矿车上，等下层按住蓝色开关' : '向右走到矿车边';
+    }
+    if (!run.gateOpen && run.players.left.x >= cart.gateX - 4) return '水晶门认光：等两只萤火虫都到';
+    if (!run.players.left.firefly) return '往右拿你的萤火虫，再回到蓝色开关';
+    return nearMineSwitch(run.players.left.x, cart.switchX)
+      ? '按住蓝色开关，送队友过矿车段'
+      : run.players.left.x < cart.switchX ? '向右走到蓝色开关旁' : '向左回到蓝色开关旁';
   }
   if (run.bridgeCrossed) {
     if (seat === 'right') {

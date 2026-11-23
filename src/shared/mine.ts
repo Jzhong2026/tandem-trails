@@ -29,7 +29,8 @@ export const MINE2 = {
   lowerY: 316,
   bridge1: { start: 300, end: 455, switchX: 258 },
   bridge2: { start: 560, end: 715, switchX: 520 },
-  fireflies: { left: 760, right: 490 },
+  cart: { from: 760, to: 860, switchX: 740, gateX: 860, speed: 120 },
+  fireflies: { left: 820, right: 490 },
   fireflyRadius: 16,
   walkSpeed: 142,
   interactRange: 27,
@@ -50,6 +51,9 @@ export interface MineView {
   bridge2Crossed: boolean;
   liftHeld: boolean;
   liftProgress: number;
+  cartX: number;
+  cartHeld: boolean;
+  gateOpen: boolean;
   finished: boolean;
   elapsedMs: number;
 }
@@ -60,7 +64,9 @@ export function createMine(level: MineLevel = 'mine'): MineView {
     level,
     players: { left: { x: start, firefly: false }, right: { x: start, firefly: false } },
     bridgeOpen: false, bridgeCrossed: false, bridge2Open: false, bridge2Crossed: false,
-    liftHeld: false, liftProgress: 0, finished: false, elapsedMs: 0,
+    liftHeld: false, liftProgress: 0,
+    cartX: MINE2.cart.from, cartHeld: false, gateOpen: false,
+    finished: false, elapsedMs: 0,
   };
 }
 
@@ -129,9 +135,10 @@ export function stepMine(run: MineView, inputs: MovementInputs) {
 }
 
 // Each seat holds a switch for the other: lower opens the upper bridge, then upper opens the lower bridge.
+// The upper tail is a cart gap only the lower switch can drive, and the lower exit gate needs both fireflies.
 function stepDoubleBridge(run: MineView, inputs: MovementInputs) {
   const { left: lower, right: upper } = run.players;
-  const { bridge1, bridge2, fireflies, end } = MINE2;
+  const { bridge1, bridge2, cart, fireflies, end } = MINE2;
 
   run.bridgeOpen = run.bridgeCrossed || (inputs.left.interact && nearMineSwitch(lower.x, bridge1.switchX));
   if (run.bridgeOpen) {
@@ -151,5 +158,18 @@ function stepDoubleBridge(run: MineView, inputs: MovementInputs) {
 
   if (Math.abs(lower.x - fireflies.left) < MINE2.fireflyRadius) lower.firefly = true;
   if (Math.abs(upper.x - fireflies.right) < MINE2.fireflyRadius) upper.firefly = true;
+  run.gateOpen = lower.firefly && upper.firefly;
+  if (!run.gateOpen && lower.x > cart.gateX) lower.x = cart.gateX;
+
+  const aboard = upper.x >= cart.from - 2;
+  run.cartHeld = aboard && upper.x <= run.cartX + 24
+    && inputs.left.interact && nearMineSwitch(lower.x, cart.switchX);
+  if (run.cartHeld) run.cartX = Math.min(cart.to, run.cartX + cart.speed * GAME_TICK_MS / 1000);
+  if (aboard && run.cartX < cart.to) {
+    upper.x = run.cartX;
+  } else if (run.bridgeOpen) {
+    upper.x = walk(upper.x, inputs.right, 60, run.cartX >= cart.to ? end : cart.from);
+  }
+
   run.finished = minerAtExit(run, 'left') && minerAtExit(run, 'right') && lower.firefly && upper.firefly;
 }

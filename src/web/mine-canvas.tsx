@@ -178,10 +178,13 @@ function paintMineRun(ctx: Context, run: MineView, seat: Seat, looks: Looks) {
 }
 
 function paintMine2Layout(ctx: Context) {
-  const { width, height, bridge1, bridge2, upperY, lowerY, exit } = MINE2;
+  const { width, height, bridge1, bridge2, cart, upperY, lowerY, exit } = MINE2;
   caveBackdrop(ctx, width, height, lowerY);
   floor(ctx, 45, bridge1.start + 2, upperY);
-  floor(ctx, bridge1.end - 2, 960, upperY);
+  floor(ctx, bridge1.end - 2, cart.from + 2, upperY);
+  floor(ctx, cart.to - 2, 960, upperY);
+  block(ctx, cart.from, upperY + 4, cart.to - cart.from, 3, '#ad866188', 1);
+  for (let x = cart.from + 6; x < cart.to - 6; x += 18) block(ctx, x, upperY + 7, 8, 3, '#8a6a4a', 1);
   floor(ctx, 45, bridge2.start + 2, lowerY);
   floor(ctx, bridge2.end - 2, 960, lowerY);
   doorway(ctx, exit, upperY);
@@ -190,7 +193,7 @@ function paintMine2Layout(ctx: Context) {
 }
 
 function paintMine2Run(ctx: Context, run: MineView, seat: Seat, looks: Looks) {
-  const { bridge1, bridge2, lowerY, upperY, fireflies, exit } = MINE2;
+  const { bridge1, bridge2, cart, lowerY, upperY, fireflies, exit } = MINE2;
   const seconds = animationSeconds(run.elapsedMs);
   cable(ctx, bridge1.switchX, bridge1.start, lowerY, upperY, run.bridgeOpen, '#b4f29c', seconds);
   cable(ctx, bridge2.switchX, bridge2.start, upperY, lowerY, run.bridge2Open, '#ffd189', seconds);
@@ -206,6 +209,15 @@ function paintMine2Run(ctx: Context, run: MineView, seat: Seat, looks: Looks) {
   }
   paintSwitch(ctx, bridge1.switchX, lowerY, '#a7e1a0', run.bridgeOpen);
   paintSwitch(ctx, bridge2.switchX, upperY, '#f5bd80', run.bridge2Open);
+  cable(ctx, cart.switchX, run.cartX, lowerY, upperY, run.cartHeld, '#8fe3ff', seconds);
+  paintSwitch(ctx, cart.switchX, lowerY, '#8fe3ff', run.cartHeld);
+  block(ctx, run.cartX - 24, upperY - 13, 48, 13, '#8a6a4a', 3);
+  block(ctx, run.cartX - 24, upperY - 13, 48, 4, '#c7a471', 2);
+  for (const offset of [-14, 14]) block(ctx, run.cartX + offset - 4, upperY - 2, 8, 6, '#3c3444', 3);
+  const gateSlide = run.gateOpen ? 26 : 0;
+  block(ctx, cart.gateX - 10 - gateSlide, lowerY - 58, 10, 58, '#7fe6bb88', 3);
+  block(ctx, cart.gateX + gateSlide, lowerY - 58, 10, 58, '#7fe6bb88', 3);
+  if (run.gateOpen) glow(ctx, cart.gateX, lowerY - 30, 40, '#7fe6bb44');
 
   if (run.players.left.firefly && run.players.right.firefly) {
     glow(ctx, exit + 25, upperY - 32, 56, '#f6cd7666');

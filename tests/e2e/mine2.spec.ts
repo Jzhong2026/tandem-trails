@@ -96,10 +96,21 @@ test('a family finishes the first mine, advances to the double bridge, and passe
     } finally {
       await release();
     }
+    // Lower collects its firefly, returns to the cart switch; upper rides the cart across the gap.
+    await keyUntil('d', state => state.players.left.firefly);
+    await keyUntil('a', state => state.players.left.x <= MINE2.cart.switchX);
+    await touchUntil('向右走', state => state.players.right.x === MINE2.cart.from);
+    await expect(guest.getByText('站在矿车上，等下层按住蓝色开关')).toBeVisible();
+    await host.keyboard.down('e');
+    try {
+      await expect(host.getByText('按住蓝色开关，送队友过矿车段')).toBeVisible();
+      await until(state => state.cartX === MINE2.cart.to);
+    } finally {
+      await host.keyboard.up('e');
+    }
     await touchUntil('向右走', state => state.players.right.x >= MINE2.exit);
     await expect(guest.getByText('你已到出口，等队友过来')).toBeVisible();
     await keyUntil('d', state => state.finished);
-
     await expect(host.getByRole('heading', { name: '一起走出矿洞了！' })).toBeVisible();
     await expect(guest.getByRole('heading', { name: '一起走出矿洞了！' })).toBeVisible();
     await expect(guest.getByRole('button', { name: '下一关' })).toHaveCount(0);
