@@ -1,0 +1,25 @@
+# 上海英语课程的教材与覆盖范围
+
+核对日期为 2026 年 11 月 23 日。上下册分别取已经使用的最近学期（2026 秋、2026 春）。上海初中预备年级按五四学制六年级编排。[上海市教委秋季用书通知](https://edu.sh.gov.cn/xxgk2_zdgz_jcjy_04/20260810/339e915d906842caaf98736d562df96a.html) · [春季用书目录](https://www.pudong.gov.cn/zwgk/14524.gkml_ywl_dyjy/2025/364/349212/b8259ad9634849d2b0f2a01e4772aa4c.pdf) · [上海外国语大学教材编写团队说明](https://screle.shisu.edu.cn/ea/de/c16360a191198/page.htm)
+
+共 197 节原创微课，覆盖上海空中课堂所列十册的 98 个编号单元，以及三至五年级下册另一个可选教材的 34 个编号单元。表中节数还包含预备、复习、实践、阅读或写作课。一节微课集中教一个可以当场练习的语言目标。教材中的分课时听力、歌曲和故事细读可配合官方课时使用。三至五年级下册所对应的是 2026 春已发行版，2027 春需要另行核对。
+
+| 册次 | 教材 | 原创节数 | 教学范围 | 目录核查 |
+| --- | --- | ---: | --- | --- |
+| 二上 | 沪教版 | 14 | Starter、10 个 Unit、3 节跨单元实践 | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124002&gradeName=%E4%BA%8C%E5%B9%B4%E7%BA%A7&semesterNo=1) · [出版方同步书目](https://www.sste.com/subbooks12/3524.html) |
+| 二下 | 沪教版 | 10 | 10 个 Unit | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124002&gradeName=%E4%BA%8C%E5%B9%B4%E7%BA%A7&semesterNo=2) · [出版方同步书目](https://www.sste.com/subbooks12/3379.html) |
+| 三上 | 沪教版 | 11 | Starter、10 个 Unit | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124003&gradeName=%E4%B8%89%E5%B9%B4%E7%BA%A7&semesterNo=1) · [国家平台教材预览](https://r1-ndr.ykt.cbern.com.cn/edu_product/esp/assets/319f0cb8-03af-70e7-7c8e-5a2241688ade.t/zh-CN/1786675956879/transcode/image/5.jpg) |
+| 三下 | 牛津上海版 | 22 | 4 个 Module 共 12 个 Unit、4 节模块复习、2 节综合评估、4 节 Project | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124003&gradeName=%E4%B8%89%E5%B9%B4%E7%BA%A7&semesterNo=2) · [教材目录](https://www.renjiaoshe.com/yingyu/niujinshanghaiban/) |
+| 三下 | 新世纪版 | 12 | 12 个 Unit | [现用教材配套资源](https://mp3.bookmall.com.cn/book/access.action?code=54464549) · [分册目录](https://m.xueba5.com/huwaijiaoban/yingyux3x/) |
+| 四上 | 沪教版 | 11 | Starter、10 个 Unit | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124004&gradeName=%E5%9B%9B%E5%B9%B4%E7%BA%A7&semesterNo=1) · [国家平台教材预览](https://r3-ndr.ykt.cbern.com.cn/edu_product/esp/assets/3bac9453-ecbd-9133-f0a3-92cb2c6530c5.t/zh-CN/1786675957280/transcode/image/5.jpg) |
+| 四下 | 牛津上海版 | 22 | 4 个 Module 共 12 个 Unit、4 节模块复习、2 节综合评估、4 节 Project | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124004&gradeName=%E5%9B%9B%E5%B9%B4%E7%BA%A7&semesterNo=2) · [教材目录](https://www.renjiaoshe.com/yingyu/niujinshanghaiban/) |
+| 四下 | 新世纪版 | 18 | 12 个 Unit、4 节 Reading、2 节 Project | [现用教材配套资源](https://mp3.bookmall.com.cn/book/access.action?code=54465067) · [分册目录](https://m.xueba5.com/huwaijiaoban/yingyux4x/) |
+| 五上 | 沪教版 | 11 | Starter、10 个 Unit | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124005&gradeName=%E4%BA%94%E5%B9%B4%E7%BA%A7&semesterNo=1) · [国家平台教材预览](https://r3-ndr.ykt.cbern.com.cn/edu_product/esp/assets/48dadfac-0bda-3a13-38a3-f3d072aff528.t/zh-CN/1786675957109/transcode/image/5.jpg) |
+| 五下 | 牛津上海版 | 22 | 4 个 Module 共 12 个 Unit、4 节模块复习、2 节综合评估、4 节 Project | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177124000&sectionName=%E5%B0%8F%E5%AD%A6&gradeId=1554711046177124005&gradeName=%E4%BA%94%E5%B9%B4%E7%BA%A7&semesterNo=2) · [教材目录](https://www.renjiaoshe.com/yingyu/niujinshanghaiban/) |
+| 五下 | 新世纪版 | 16 | 10 个 Unit、5 节 Reading、1 节 Project | [现用教材配套资源](https://mp3.bookmall.com.cn/book/access.action?code=54465068) · [分册目录](https://m.xueba5.com/huwaijiaoban/yingyux5x/) |
+| 六上 | 沪教版 | 16 | 4 个 Starter、6 个 Unit，每单元各有语言讲解和表达应用 | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177125000&sectionName=%E5%88%9D%E4%B8%AD&gradeId=1554711046177125001&gradeName=%E5%85%AD%E5%B9%B4%E7%BA%A7&semesterNo=1) · [国家平台教材预览](https://r1-ndr.ykt.cbern.com.cn/edu_product/esp/assets/060066ae-cd3b-d133-02c2-e34685671790.t/zh-CN/1787711148392/transcode/image/8.jpg) |
+| 六下 | 沪教版 | 12 | 6 个 Unit，每单元各有语言讲解和表达应用 | [空中课堂](https://basic.sh.smartedu.cn/airclassroom/airClassroom?sectionId=1554711046177125000&sectionName=%E5%88%9D%E4%B8%AD&gradeId=1554711046177125001&gradeName=%E5%85%AD%E5%B9%B4%E7%BA%A7&semesterNo=2) · [国家平台教材预览](https://r3-ndr.ykt.cbern.com.cn/edu_product/esp/assets/ec3945f9-9e54-f3f1-471c-45d9675fa73b.t/zh-CN/1771057435928/transcode/image/5.jpg) |
+
+2026 春三至五年级下册的英语有牛津上海版与新世纪版两条路径。牛津路径以市级空中课堂单元树为准，新世纪路径以市教委准用信息、上海外语教育出版社配套音频索引和可查的教材分册目录相互核对。各版本的词汇表、附录和活动材料融入相应的语言任务。[上海智慧教育平台学生用书资源](https://www.sh.smartedu.cn/teachingMaterial?type=8) · [新世纪课标版目录互查](https://www.renjiaoshe.com/yingyu/xinshijiban/)
+
+课程中的示范句、情境、练习和解析为本项目编写。故事主题课使用简短原创情境或公共领域寓言说明阅读方法。
