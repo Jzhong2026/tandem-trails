@@ -3,7 +3,7 @@ import { isWorkshopMode } from '../shared/workshop.js';
 import type { WorkshopAction } from '../shared/workshop.js';
 import { isTruckId } from '../shared/trucks.js';
 import type { TruckId } from '../shared/trucks.js';
-import { DEFAULT_COURSE, validCourse } from '../shared/study.js';
+import { DEFAULT_COURSE, sameCourse, subjectQuestions, validCourse } from '../shared/study.js';
 import { questionsFor } from './curriculum.js';
 import { LearningMatch } from './learning-match.js';
 import type { MatchMode, LearningAction } from '../shared/learning.js';
@@ -121,8 +121,9 @@ export class RaceRoom {
     let changed = false;
     if (config.course !== undefined) {
       if (!validCourse(config.course)) return false;
-      if (config.course.grade !== this.course.grade || config.course.term !== this.course.term) {
-        this.course = {grade:config.course.grade,term:config.course.term};
+      if (!sameCourse(config.course, this.course)) {
+        const { grade, term, subject } = config.course;
+        this.course = { grade, term, ...(subject && { subject }) };
         changed=true;
       }
     }
@@ -183,7 +184,7 @@ export class RaceRoom {
       return true;
     }
     this.run = createRace({
-      bank, course:this.course,
+      bank: subjectQuestions(bank, this.course.subject), course:this.course,
       names: this.seatOrder.map(seat => this.members[seat]!.name),
       colors: this.seatOrder.map(seat => this.members[seat]!.color),
       trackId: this.trackId,

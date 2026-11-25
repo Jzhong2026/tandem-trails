@@ -1,10 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { questionsFor } from '../src/server/curriculum.js';
+import { COURSE_SUBJECTS, GRADE_NAMES, subjectQuestions } from '../src/shared/study.js';
+import type { CourseSubject } from '../src/shared/study.js';
 import {
   RALLY_LEVELS, RALLY_VEHICLES, advanceRallyQuiz, answerRally, calculateRallyStars, canStartRally,
   completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress, recordRallyResult,
-  retryRallyQuestion, saveRallyProgress, steerRally, stepRally,
+  enterRallyCheckpoint, retryRallyQuestion, saveRallyProgress, steerRally, stepRally,
 } from '../src/shared/knowledge-rally.js';
+
+test('every semester and subject supplies two complete stops with valid choices from its own course', () => {
+  for (let grade = 2; grade < GRADE_NAMES.length; grade++) {
+    for (const term of [1, 2]) {
+      const semester = questionsFor({ grade, term });
+      for (const subject of Object.keys(COURSE_SUBJECTS) as CourseSubject[]) {
+        const bank = subjectQuestions(semester, subject);
+        const run = createRallyRun('campus', 'comet-rally', 7, bank);
+        for (let stop = 0; stop < 2; stop++) {
+          enterRallyCheckpoint(run);
+          const questions = run.quiz!.questions;
+          assert.equal(questions.length, 4);
+          const subjects = new Set(questions.map(q => q.subject));
+          assert.deepEqual(subjects, new Set(subject === 'mixed' ? ['chinese', 'math', 'english'] : [subject]));
+          for (const q of questions) {
+            const original = bank.find(entry => entry.id === q.id)!;
+            assert.equal(q.options[q.answer], original.options[original.answer]);
+            assert.deepEqual([...q.options].sort(), [...original.options].sort());
+            assert.equal(answerRally(run, q.options.length), false);
+            assert.equal(run.quiz!.feedback, null);
+            assert.ok(answerRally(run, q.answer));
+            advanceRallyQuiz(run);
+          }
+        }
+        assert.equal(new Set(run.answers.map(q => q.id)).size, 8);
+      }
+    }
+  }
+});
 
 test('a new rally uses the selected level and selectable vehicle', () => {
   const run = createRallyRun('forest', 'scania-s500', 7);

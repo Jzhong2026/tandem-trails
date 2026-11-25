@@ -1,24 +1,26 @@
 import { useState } from 'react';
-import { RACE_QUESTIONS } from '../shared/knowledge-rally.js';
+import type { RaceQuestion } from '../shared/race-questions.js';
 import type { RallyQuiz } from '../shared/knowledge-rally.js';
 import { RallyQuizCard } from './rally-quiz.js';
 
 interface Props {
+  questionBank: RaceQuestion[];
   questionIds: string[];
   onMastered: (id: string) => void;
   onExit: () => void;
 }
 
-export function RallyReview({ questionIds, onMastered, onExit }: Props) {
-  const [index, setIndex] = useState(0);
+export function RallyReview({ questionIds, questionBank, onMastered, onExit }: Props) {
+  const [questions] = useState(() => questionIds.flatMap(id => questionBank.find(entry => entry.id === id) ?? []));
+  const index = questions.findIndex(entry => entry.id === questionIds[0]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const [firstTry, setFirstTry] = useState(true);
-  const question = RACE_QUESTIONS.find(entry => entry.id === questionIds[index]);
+  const question = questions[index];
   if (!question) return null;
   const quiz: Pick<RallyQuiz, 'index' | 'questions' | 'feedback' | 'picked' | 'firstTry'> = {
     index,
-    questions: questionIds.map(id => RACE_QUESTIONS.find(entry => entry.id === id)!).filter(Boolean),
+    questions,
     feedback,
     picked,
     firstTry,
@@ -36,9 +38,8 @@ export function RallyReview({ questionIds, onMastered, onExit }: Props) {
   const retry = () => { setFeedback(null); setPicked(null); };
   const next = () => {
     onMastered(question.id);
-    if (index + 1 >= questionIds.length) onExit();
+    if (questionIds.length === 1) onExit();
     else {
-      setIndex(value => value + 1);
       setFeedback(null);
       setPicked(null);
       setFirstTry(true);
@@ -56,7 +57,7 @@ export function RallyReview({ questionIds, onMastered, onExit }: Props) {
           key={question.id}
           question={question}
           quiz={quiz}
-          continueLabel={index + 1 === questionIds.length ? '完成复习' : '下一道错题'}
+          continueLabel="完成复习"
           onAnswer={answer}
           onRetry={retry}
           onContinue={next}

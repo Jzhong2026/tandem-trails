@@ -1,5 +1,6 @@
 import type { RaceQuestion } from '../shared/race-questions.js';
 import type { RallyQuiz } from '../shared/knowledge-rally.js';
+import { SUBJECT_NAMES } from '../shared/study.js';
 
 interface Props {
   question: RaceQuestion;
@@ -20,7 +21,7 @@ export function RallyQuizCard({ question, quiz, combo = 0, continueLabel = '继�
         {quiz.questions.map((entry, index) => <i key={entry.id} className={index < quiz.index ? 'done' : index === quiz.index ? 'now' : ''} />)}
       </div>
     </div>
-    <span className={`rally-subject${question.subject === 'chinese' ? ' chinese' : ''}`}>{question.subject === 'chinese' ? '语文 · ' : '数学 · '}{question.topic}</span>
+    <span className={`rally-subject ${question.subject}`}>{SUBJECT_NAMES[question.subject]} · {question.topic}</span>
     <h2 id="rally-question-title">{question.prompt}</h2>
     <div className="rally-options" role="group" aria-label="答案选项">
       {question.options.map((option, index) => {
@@ -47,6 +48,6 @@ export function RallyQuizCard({ question, quiz, combo = 0, continueLabel = '继�
         </button>
       </div>
     </div>}
-    {!answered && <p className="rally-quiz-tip">键盘 1–4 选择答案 · 答错后先读解析，再试一次</p>}
+    {!answered && <p className="rally-quiz-tip">点击选项作答 · 答错后先读解析，再试一次</p>}
   </section>;
 }

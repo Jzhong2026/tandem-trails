@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { GRADE_NAMES, SUBJECT_NAMES, courseName } from '../shared/study.js';
-import type { StudyCard, StudyCourse, StudyShelf } from '../shared/study.js';
+import { COURSE_SUBJECTS, GRADE_NAMES, SUBJECT_NAMES, courseName } from '../shared/study.js';
+import type { CourseSubject, StudyCard, StudyCourse, StudyShelf } from '../shared/study.js';
 import type { RaceSubject } from '../shared/race-questions.js';
 
 function LessonReader({ cards }: { cards: StudyCard[] }) {
@@ -70,9 +70,11 @@ export function StudyPicker({
   course,
   disabled,
   change,
+  raceSubjects = true,
 }: {
   course: StudyCourse;
   disabled: boolean;
+  raceSubjects?: boolean;
   change: (course: StudyCourse) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -142,6 +144,12 @@ export function StudyPicker({
             <option value={2}>下学期</option>
           </select>
         </label>
+        {raceSubjects && <label>比赛学科
+          <select disabled={disabled} value={course.subject ?? 'mixed'}
+            onChange={e => change({ ...course, subject: e.target.value as CourseSubject })}>
+            {Object.entries(COURSE_SUBJECTS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </label>}
       </div>
       <details onToggle={(e) => setOpen(e.currentTarget.open)}>
         <summary>查看课程目录和配套课时</summary>

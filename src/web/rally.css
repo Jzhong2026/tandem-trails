@@ -88,6 +88,13 @@
 .rally-btn.ghost { background: transparent; }
 .rally-btn.small { min-height: 36px; padding: 0 12px; font-size: 0.82rem; }
 .rally-btn.icon { width: 42px; padding: 0; font-size: 1.05rem; }
+
+.rally-course-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px; }
+.rally-course-picker label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: hsl(var(--rally-muted)); }
+.rally-course-picker select { font: inherit; color-scheme: dark; color: hsl(var(--rally-ink)); background: hsl(var(--rally-surface-2)); border: 1px solid hsl(var(--rally-line)); border-radius: 10px; padding: 9px 12px; min-height: 44px; }
+.rally-course-picker select:focus-visible { outline: 3px solid hsl(var(--rally-accent)); }
+.rally-subject-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.rally-subject-options [aria-pressed="true"] { color: hsl(var(--rally-bg)); background: hsl(var(--rally-accent)); }
 .rally-btn.danger { color: hsl(var(--rally-danger)); border-color: hsl(var(--rally-danger) / 0.5); }
 .rally-chip {
   display: inline-flex;

@@ -1,11 +1,17 @@
 import { useMemo, useState } from 'react';
 import {
-  RALLY_LEVELS, RALLY_VEHICLES, RACE_QUESTIONS, canStartRally, levelById, vehicleById,
+  RALLY_LEVELS, RALLY_VEHICLES, canStartRally, levelById, vehicleById,
 } from '../shared/knowledge-rally.js';
 import type { RallyProgress } from '../shared/knowledge-rally.js';
+import type { CourseSubject, StudyCourse } from '../shared/study.js';
+import type { RaceQuestion } from '../shared/race-questions.js';
+import { COURSE_SUBJECTS, GRADE_NAMES } from '../shared/study.js';
 import { RallyVehiclePreview } from './rally-preview.js';
 
 interface Props {
+  course: StudyCourse;
+  onCourse: (course: StudyCourse) => void;
+  questions: RaceQuestion[];
   progress: RallyProgress;
   onSelectVehicle: (id: string) => void;
   onStart: (levelId: string) => void;
@@ -13,12 +19,14 @@ interface Props {
   onExit: () => void;
 }
 
-export function RallyHome({ progress, onSelectVehicle, onStart, onReview, onExit }: Props) {
+export function RallyHome({ progress, course, onCourse, questions, onSelectVehicle, onStart, onReview, onExit }: Props) {
   const [levelId, setLevelId] = useState(() => RALLY_LEVELS[Math.min(progress.unlockedLevel - 1, RALLY_LEVELS.length - 1)].id);
   const level = levelById(levelId);
   const vehicle = vehicleById(progress.selectedVehicleId);
   const totalStars = useMemo(() => Object.values(progress.stars).reduce((sum, stars) => sum + stars, 0), [progress.stars]);
-  const mastered = useMemo(() => Object.values(progress.masteredQuestions).filter(count => count > 0).length, [progress.masteredQuestions]);
+  const mastered = questions.filter(q => progress.masteredQuestions[q.id] > 0).length;
+  const selectedSubject = course.subject ?? 'mixed';
+  const courseLabel = `${GRADE_NAMES[course.grade]}年级${course.term === 1 ? '上' : '下'}学期 · ${COURSE_SUBJECTS[selectedSubject]}`;
   const canStart = canStartRally(progress, levelId);
 
   return <div className="rally-app">
@@ -40,16 +48,35 @@ export function RallyHome({ progress, onSelectVehicle, onStart, onReview, onExit
             <div className="rally-hero-facts">
               <span className="rally-chip">6 段成长赛道</span>
               <span className="rally-chip">5 款可选 3D 车辆</span>
-              <span className="rally-chip">95 道课本题</span>
+              <span className="rally-chip">二至九年级 · 语数英</span>
               <span className="rally-chip">答错可解析重试</span>
             </div>
           </div>
-          <div className="rally-hero-stamp"><b>95</b><span>道语文 · 数学题<br />边开边学，越答越强</span></div>
+          <div className="rally-hero-stamp"><b>{questions.length}</b><span>道可练习的题目<br />{courseLabel}</span></div>
+        </section>
+
+        <section className="rally-course-picker rally-panel" aria-labelledby="rally-course-title">
+          <h2 id="rally-course-title">选择课程</h2>
+          <label>年级与学期
+            <select value={`${course.grade}-${course.term}`} onChange={event => {
+              const [grade, term] = event.target.value.split('-').map(Number);
+              onCourse({ ...course, grade, term });
+            }}>
+              {GRADE_NAMES.map((name, grade) => name && [1, 2].map(term =>
+                <option key={`${grade}-${term}`} value={`${grade}-${term}`}>{name}年级{term === 1 ? '上' : '下'}学期</option>,
+              ))}
+            </select>
+          </label>
+          <div role="group" aria-label="学科" className="rally-subject-options">
+            {Object.entries(COURSE_SUBJECTS).map(([subject, name]) => <button key={subject}
+              className="rally-btn" aria-pressed={subject === selectedSubject}
+              onClick={() => onCourse({ ...course, subject: subject as CourseSubject })}>{name}</button>)}
+          </div>
         </section>
 
         <section className="rally-summary" aria-label="学习进度">
           <div className="rally-stat"><div className="rally-stat-icon">★</div><div><span>已收集星星</span><strong>{totalStars} / 18</strong></div></div>
-          <div className="rally-stat"><div className="rally-stat-icon">✓</div><div><span>掌握题目</span><strong>{mastered} / {RACE_QUESTIONS.length}</strong></div></div>
+          <div className="rally-stat"><div className="rally-stat-icon">✓</div><div><span>掌握题目</span><strong>{mastered} / {questions.length}</strong></div></div>
           <div className="rally-stat"><div className="rally-stat-icon">⚑</div><div><span>已解锁赛道</span><strong>{progress.unlockedLevel} / {RALLY_LEVELS.length}</strong></div></div>
           <div className="rally-stat"><div className="rally-stat-icon">↗</div><div><span>学习总积分</span><strong>{progress.totalScore.toLocaleString('zh-CN')}</strong></div></div>
         </section>
@@ -113,7 +140,7 @@ export function RallyHome({ progress, onSelectVehicle, onStart, onReview, onExit
               ><b>{entry.kind === 'truck' ? ' truck' : entry.kind === 'sport' ? ' sport' : ' rally'}</b><span>{entry.name}</span></button>)}
             </div>
             <div className="rally-start-row">
-              <div><b>{level.region}</b>{level.name} · {level.checkpoints.length} 个知识补给站</div>
+              <div><b>{courseLabel}</b>{level.name} · {level.checkpoints.length} 个知识补给站</div>
               <button className="rally-btn primary" disabled={!canStart} onClick={() => onStart(levelId)}>{progress.pendingReview.length ? '先完成错题复习' : '出发，开始闯关'} <span aria-hidden="true">→</span></button>
             </div>
           </section>

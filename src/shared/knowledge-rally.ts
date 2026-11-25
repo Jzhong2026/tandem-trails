@@ -1,6 +1,6 @@
 import { RACE_QUESTIONS, QUESTIONS_PER_STATION } from './race-questions.js';
 import type { RaceQuestion } from './race-questions.js';
-import { mulberry32 } from './race.js';
+import { drawQuestions, mulberry32 } from './race.js';
 import type { RaceTheme } from './race-tracks.js';
 
 export type RallyVehicleKind = 'rally' | 'sport' | 'truck';
@@ -148,6 +148,7 @@ export interface RallyAnswer {
 }
 
 export interface RallyRun {
+  questionBank: RaceQuestion[];
   level: RallyLevel;
   vehicle: RallyVehicle;
   seed: number;
@@ -204,11 +205,11 @@ export function generateRallyObstacles(level: RallyLevel, seed: number): RallyOb
   return obstacles;
 }
 
-export function createRallyRun(levelId: string, vehicleId: string, seed = Math.floor(Math.random() * 1e9)): RallyRun {
+export function createRallyRun(levelId: string, vehicleId: string, seed = Math.floor(Math.random() * 1e9), questionBank = RACE_QUESTIONS): RallyRun {
   const level = levelById(levelId);
   const vehicle = vehicleById(vehicleId);
   return {
-    level, vehicle, seed, phase: 'countdown', countdownMs: 3000, elapsedMs: 0, distance: 0,
+    level, vehicle, seed, questionBank, phase: 'countdown', countdownMs: 3000, elapsedMs: 0, distance: 0,
     speed: 0, lane: 1, laneVisual: 1, energy: 20, integrity: vehicle.maxIntegrity,
     boostMs: 0, boostArmed: true, invulnMs: 0, combo: 0, bestCombo: 0, score: 0,
     firstTryCorrect: 0, answered: 0, checkpointIndex: 0, quiz: null,
@@ -290,9 +291,9 @@ export function completeRallyReview(progress: RallyProgress, questionId: string)
   };
 }
 
-export function saveRallyProgress(storage: RallyStorage, progress: RallyProgress): boolean {
+export function saveRallyProgress(storage: RallyStorage, progress: RallyProgress, key = RALLY_PROGRESS_KEY): boolean {
   try {
-    storage.setItem(RALLY_PROGRESS_KEY, JSON.stringify(progress));
+    storage.setItem(key, JSON.stringify(progress));
     return true;
   } catch {
     return false;
@@ -303,10 +304,10 @@ function safeInteger(value: unknown, fallback: number, min: number, max: number)
   return typeof value === 'number' && Number.isInteger(value) ? Math.max(min, Math.min(max, value)) : fallback;
 }
 
-export function loadRallyProgress(storage: RallyStorage): RallyProgress {
+export function loadRallyProgress(storage: RallyStorage, key = RALLY_PROGRESS_KEY, questions = RACE_QUESTIONS): RallyProgress {
   const fallback = createRallyProgress();
   try {
-    const raw = storage.getItem(RALLY_PROGRESS_KEY);
+    const raw = storage.getItem(key);
     if (!raw) return fallback;
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object') return fallback;
@@ -317,7 +318,10 @@ export function loadRallyProgress(storage: RallyStorage): RallyProgress {
       for (const level of RALLY_LEVELS) stars[level.id] = safeInteger((data.stars as Record<string, unknown>)[level.id], 0, 0, 3);
     }
     if (data.masteredQuestions && typeof data.masteredQuestions === 'object') {
-      for (const question of RACE_QUESTIONS) mastered[question.id] = safeInteger((data.masteredQuestions as Record<string, unknown>)[question.id], 0, 0, 9999);
+      for (const question of questions) {
+        const count = safeInteger((data.masteredQuestions as Record<string, unknown>)[question.id], 0, 0, 9999);
+        if (count) mastered[question.id] = count;
+      }
     }
     return {
       version: 1,
@@ -325,7 +329,7 @@ export function loadRallyProgress(storage: RallyStorage): RallyProgress {
       stars,
       masteredQuestions: mastered,
       pendingReview: Array.isArray(data.pendingReview)
-        ? [...new Set(data.pendingReview.filter((id): id is string => typeof id === 'string' && RACE_QUESTIONS.some(question => question.id === id)))]
+        ? [...new Set(data.pendingReview.filter((id): id is string => typeof id === 'string' && questions.some(question => question.id === id)))]
         : [],
       totalScore: safeInteger(data.totalScore, 0, 0, 999_999_999),
       selectedVehicleId: typeof data.selectedVehicleId === 'string' && RALLY_VEHICLES.some(vehicle => vehicle.id === data.selectedVehicleId)
@@ -346,40 +350,11 @@ export function steerRally(run: RallyRun, direction: number): boolean {
   return true;
 }
 
-function shuffled<T>(items: T[], random: () => number): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function drawRallyQuestions(run: RallyRun, checkpoint: number): RaceQuestion[] {
-  const random = mulberry32(run.seed + checkpoint * 977);
-  const used = new Set(run.answers.map(answer => answer.id));
-  const pool = shuffled(RACE_QUESTIONS.filter(question => !used.has(question.id)), random);
-  const count = questionsPerStop(run.level);
-  const questions: RaceQuestion[] = [];
-  for (let i = 0; i < count; i++) {
-    const subject = i % 2 === 0 ? 'chinese' : 'math';
-    const question = pool.find(item => item.subject === subject && !questions.some(picked => picked.id === item.id))
-      ?? pool.find(item => !questions.some(picked => picked.id === item.id));
-    if (!question) break;
-    const order = shuffled([0, 1, 2, 3], random);
-    questions.push({
-      ...question,
-      options: order.map(index => question.options[index]) as RaceQuestion['options'],
-      answer: order.indexOf(question.answer),
-    });
-  }
-  return questions;
-}
-
 export function answerRally(run: RallyRun, option: number): boolean {
   const quiz = run.quiz;
-  if (run.phase !== 'quiz' || !quiz || quiz.feedback !== null || option < 0 || option > 3) return false;
+  if (run.phase !== 'quiz' || !quiz || quiz.feedback !== null) return false;
   const question = quiz.questions[quiz.index];
+  if (!Number.isInteger(option) || option < 0 || option >= question.options.length) return false;
   const correct = option === question.answer;
   quiz.picked = option;
   if (quiz.firstTry && quiz.firstPicked === null) quiz.firstPicked = option;
@@ -450,7 +425,7 @@ export function enterRallyCheckpoint(run: RallyRun) {
   run.phase = 'quiz';
   run.quiz = {
     checkpoint: run.checkpointIndex,
-    questions: drawRallyQuestions(run, run.checkpointIndex),
+    questions: drawQuestions(mulberry32(run.seed + run.checkpointIndex * 977), run.answers, run.questionBank, questionsPerStop(run.level)),
     index: 0,
     firstTry: true,
     feedback: null,

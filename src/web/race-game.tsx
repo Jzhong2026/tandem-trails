@@ -21,10 +21,10 @@ interface Props {
 
 export function RaceGame({ onExit, initialAction,course,rememberCourse }: Props) {
   const game = useRaceRoom(course);
-  const grade=game.room?.course.grade, term=game.room?.course.term, host=game.seat!==null && game.room?.hostSeat===game.seat;
+  const grade=game.room?.course.grade, term=game.room?.course.term, subject=game.room?.course.subject, host=game.seat!==null && game.room?.hostSeat===game.seat;
   useEffect(()=>{
-    if(host && grade && term) rememberCourse({grade,term});
-  },[host,grade,term,rememberCourse]);
+    if(host && grade && term) rememberCourse({grade,term,subject});
+  },[host,grade,term,subject,rememberCourse]);
   const audioRef = useRef<RaceAudio | null>(null);
   if (!audioRef.current) audioRef.current = new RaceAudio();
   const audio = audioRef.current;

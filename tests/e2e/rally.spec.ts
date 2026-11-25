@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { RACE_QUESTIONS } from '../../src/shared/race-questions.js';
+import { questionsFor } from '../../src/server/curriculum.js';
+
+const thirdGradeEnglish = questionsFor({ grade: 3, term: 1 }).filter(q => q.subject === 'english');
 
 async function useFastCanvas(page: Page) {
   await page.addInitScript(() => {
@@ -16,13 +18,13 @@ async function useFastCanvas(page: Page) {
 
 async function answerQuiz(page: Page, wrong = false) {
   const prompt = (await page.locator('.rally-quiz-card h2').textContent())?.trim() ?? '';
-  const question = RACE_QUESTIONS.find(entry => entry.prompt === prompt);
+  const question = thirdGradeEnglish.find(entry => entry.prompt === prompt);
   if (!question) throw new Error(`unknown question: ${prompt}`);
   const options = page.locator('.rally-option');
-  const texts = await options.allTextContents();
-  const correctIndex = texts.findIndex(text => text.includes(question.options[question.answer]));
+  const texts = await options.locator('span:last-child').allTextContents();
+  const correctIndex = texts.indexOf(question.options[question.answer]);
   expect(correctIndex).toBeGreaterThanOrEqual(0);
-  await options.nth(wrong ? (correctIndex + 1) % 4 : correctIndex).click();
+  await options.nth(wrong ? (correctIndex + 1) % texts.length : correctIndex).click();
   await expect(page.locator('.rally-feedback')).toBeVisible();
   if (wrong) {
     await expect(page.locator('.rally-feedback')).toContainText('差一点');
@@ -64,6 +66,11 @@ test('new rally garage switches to Scania and completes a learning stage with re
   await page.goto('/?rally=2');
   await expect(page.getByRole('heading', { name: '把知识 开向远方' })).toBeVisible();
   await expect(page.getByRole('button', { name: '选择 Scania S 520' })).toBeVisible();
+  await page.getByLabel('年级与学期').selectOption('3-1');
+  await page.getByRole('button', { name: '英语', exact: true }).click();
+  await page.reload();
+  await expect(page.getByLabel('年级与学期')).toHaveValue('3-1');
+  await expect(page.getByRole('button', { name: '英语', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
   await page.getByRole('button', { name: '选择 Scania S 520' }).click();
   await expect(page.locator('.rally-vehicle-title h3')).toHaveText('Scania S 520');
@@ -80,7 +87,8 @@ test('new rally garage switches to Scania and completes a learning stage with re
     await expect(page.locator('.rally-quiz-card')).toBeVisible();
     let stopQuestions = 0;
     while (await page.locator('.rally-quiz-card').count()) {
-      await answerQuiz(page, quizzes === 0);
+      await expect(page.locator('.rally-subject')).toContainText('英语');
+      await answerQuiz(page, quizzes < 2);
       quizzes++;
       stopQuestions++;
       expect(stopQuestions).toBeLessThanOrEqual(4);
@@ -91,18 +99,27 @@ test('new rally garage switches to Scania and completes a learning stage with re
   await expect(page.locator('.rally-result-card')).toBeVisible();
   expect(quizzes).toBe(8);
   await expect(page.locator('.rally-result-card')).toContainText('完成挑战');
-  await expect(page.locator('.rally-review-banner')).toContainText('1 道题');
+  await expect(page.locator('.rally-review-banner')).toContainText('2 道题');
   await expect(page.getByRole('button', { name: '复习后解锁下一站' })).toBeDisabled();
 
   await page.getByRole('button', { name: '开始错题复盘' }).click();
   await expect(page.locator('.rally-quiz-kicker').first()).toContainText('错题复盘');
   await answerQuiz(page);
+  await expect(page.getByLabel('第 2 题，共 2 题')).toBeVisible();
+  await answerQuiz(page);
   await expect(page.getByRole('heading', { name: '选择成长赛道' })).toBeVisible();
   await expect(page.locator('.rally-review-banner')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /松林弯道/ })).toBeEnabled();
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tandem-trails.rally-progress') ?? '{}'));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tandem-trails.rally-progress.3-1.english') ?? '{}'));
   expect(saved.unlockedLevel).toBe(2);
   expect(saved.selectedVehicleId).toBe('scania-s500');
+  await page.getByLabel('年级与学期').selectOption('2-2');
+  await expect(page.getByRole('button', { name: /松林弯道/ })).toBeDisabled();
+  await page.getByLabel('年级与学期').selectOption('3-1');
+  await page.getByRole('button', { name: '数学', exact: true }).click();
+  await expect(page.getByRole('button', { name: /松林弯道/ })).toBeDisabled();
+  await page.getByRole('button', { name: '英语', exact: true }).click();
+  await expect(page.getByRole('button', { name: /松林弯道/ })).toBeEnabled();
   expect(errors).toEqual([]);
 });
 
@@ -129,7 +146,7 @@ test('mobile garage has no horizontal overflow and touch steering works', async 
   await context.close();
 });
 
-test('real WebGL garage and MAN truck render without runtime errors', async ({ page }) => {
+test('real WebGL garage and MAN truck render without runtime errors', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
@@ -137,17 +154,17 @@ test('real WebGL garage and MAN truck render without runtime errors', async ({ p
   await page.goto('/?rally=2');
   await page.getByRole('button', { name: '选择 MAN TGX' }).click();
   await expect(page.locator('.rally-vehicle-title h3')).toHaveText('MAN TGX');
-  await page.screenshot({ path: 'test-results/rally-garage-webgl.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('rally-garage-webgl.png'), fullPage: true });
   await page.getByRole('button', { name: /出发，开始闯关/ }).click();
   await expect(page.locator('.rally-countdown')).toHaveCount(0, { timeout: 20_000 });
   const size = await page.locator('canvas[aria-label="晨光校园 三维赛车场景"]').evaluate(element => ({ width: (element as HTMLCanvasElement).width, height: (element as HTMLCanvasElement).height }));
   expect(size.width).toBeGreaterThan(0);
   expect(size.height).toBeGreaterThan(0);
-  await page.screenshot({ path: 'test-results/rally-driving-webgl.png' });
+  await page.screenshot({ path: testInfo.outputPath('rally-driving-webgl.png') });
   expect(errors).toEqual([]);
 });
 
-test('home entry tokens resolve and disabled localStorage does not white-screen the garage', async ({ page }) => {
+test('home entry tokens resolve and disabled localStorage does not white-screen the garage', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   await useFastCanvas(page);
@@ -160,10 +177,47 @@ test('home entry tokens resolve and disabled localStorage does not white-screen 
   await page.goto('/');
   const token = await page.locator('.rally-entry').evaluate(element => getComputedStyle(element).getPropertyValue('--rally-accent').trim());
   expect(token).not.toBe('');
-  await page.screenshot({ path: 'test-results/rally-home-entry.png', fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('rally-home-entry.png'), fullPage: true });
   await page.getByRole('button', { name: /进入全新知识赛车/ }).click();
   await expect(page.getByRole('heading', { name: '把知识 开向远方' })).toBeVisible();
   await page.getByRole('button', { name: '选择 Scania S 520' }).click();
   await expect(page.locator('.rally-vehicle-title h3')).toHaveText('Scania S 520');
   expect(errors).toEqual([]);
+});
+
+test('legacy review is preserved when switching courses and returning to the default', async ({ page }) => {
+  await useFastCanvas(page);
+  await page.addInitScript(() => localStorage.setItem('tandem-trails.rally-progress', JSON.stringify({
+    unlockedLevel: 2, selectedVehicleId: 'volvo-fh16', pendingReview: ['c08'],
+  })));
+  await page.goto('/?rally=2');
+  await expect(page.getByRole('button', { name: '去复习错题' })).toBeVisible();
+  await page.getByLabel('年级与学期').selectOption('2-2');
+  await expect(page.getByRole('button', { name: '去复习错题' })).toHaveCount(0);
+  await page.getByLabel('年级与学期').selectOption('2-1');
+  await page.getByRole('button', { name: '去复习错题' }).click();
+  await expect(page.getByRole('heading', { name: '曹冲称象的办法是什么？' })).toBeVisible();
+  await page.getByRole('button', { name: /赶象上船/ }).click();
+  await page.getByRole('button', { name: '完成复习' }).click();
+  await expect(page.getByRole('button', { name: /松林弯道/ })).toBeEnabled();
+});
+
+test('race lobby shares the chosen semester and subject with joining players', async ({ page, browser }) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: '上海课程', exact: true }).selectOption('3');
+  await page.getByRole('combobox', { name: '学期', exact: true }).selectOption('2');
+  await page.getByLabel('比赛学科').selectOption('math');
+  await page.getByRole('button', { name: '单人 / 创建比赛' }).click();
+  const guest = await browser.newPage();
+  try {
+    await guest.goto(await page.getByLabel('邀请链接').inputValue());
+    await expect(guest.getByRole('combobox', { name: '上海课程', exact: true })).toHaveValue('3');
+    await expect(guest.getByRole('combobox', { name: '学期', exact: true })).toHaveValue('2');
+    await expect(guest.getByLabel('比赛学科')).toBeDisabled();
+    await expect(guest.getByLabel('比赛学科')).toHaveValue('math');
+    await page.getByLabel('比赛学科').selectOption('english');
+    await expect(guest.getByLabel('比赛学科')).toHaveValue('english');
+  } finally {
+    await guest.close();
+  }
 });

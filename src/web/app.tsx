@@ -1,4 +1,4 @@
-import { DEFAULT_COURSE, validCourse } from '../shared/study.js';
+import { DEFAULT_COURSE, sameCourse, validCourse } from '../shared/study.js';
 import type { StudyCourse } from '../shared/study.js';
 import { lazy, Suspense, useCallback, useState } from 'react';
 import {
@@ -65,7 +65,7 @@ export function App() {
     return DEFAULT_COURSE;
   });
   const rememberCourse = useCallback((next: StudyCourse) => {
-    setCourse(old => old.grade === next.grade && old.term === next.term ? old : next);
+    setCourse(old => sameCourse(old, next) ? old : next);
     try {
       localStorage.setItem('tandem.study-course', JSON.stringify(next));
     } catch {
@@ -114,7 +114,7 @@ export function App() {
       {quest && !game.room
         ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
         : rally && !game.room
-          ? <Suspense fallback={<p role="status">正在打开知识赛车…</p>}><RallyGame onExit={closeRally} /></Suspense>
+          ? <Suspense fallback={<p role="status">正在打开知识赛车…</p>}><RallyGame course={course} onCourse={rememberCourse} onExit={closeRally} /></Suspense>
           : race && !game.room
             ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame course={course} rememberCourse={rememberCourse} initialAction={race} onExit={() => setRace(null)} /></Suspense>
             : game.room && game.seat

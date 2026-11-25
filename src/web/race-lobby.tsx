@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TRUCKS } from '../shared/trucks.js';
 import type { TruckId } from '../shared/trucks.js';
 import { StudyPicker } from './study-picker.js';
+import { COURSE_SUBJECTS } from '../shared/study.js';
 import { TruckGarage } from './truck-garage.js';
 import { isWorkshopMode } from '../shared/workshop.js';
 import { TOURNAMENTS } from '../shared/learning.js';
@@ -93,7 +94,7 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
       </div>
 
       <div className="race-panel">
-        <StudyPicker course={room.course} disabled={disabled || !isHost} change={course=>game.config({course})}/>
+        <StudyPicker course={room.course} raceSubjects={room.mode === 'race'} disabled={disabled || !isHost} change={course=>game.config({course})}/>
         {room.mode !== 'race' ? <div className={`learning-console ${room.mode}`}>
           <span>{TOURNAMENTS[room.mode].subject} · {isWorkshopMode(room.mode)?'四站合力赛':'六关挑战'}</span>
           <h2>{TOURNAMENTS[room.mode].name}</h2>
@@ -119,7 +120,7 @@ export function RaceLobby({ room, seat, game, onExit }: Props) {
           <span className="race-assist" style={{ margin: 0 }}>满格 {FUEL_MAX} · 默认 6 格</span>
         </div>
         <ul className="race-rules" style={{ marginTop: 14 }}>
-          <li><span className="ico" style={{ color: 'var(--r-green)' }}>＋</span><span>进服务区答 <b>4 道题</b>（语文、数学、英语轮换），答对一题 <b>+1 格油</b>。</span></li>
+          <li><span className="ico" style={{ color: 'var(--r-green)' }}>＋</span><span>进服务区答 <b>4 道题</b>（{room.course.subject && room.course.subject !== 'mixed' ? COURSE_SUBJECTS[room.course.subject] : '语文、数学、英语轮换'}），答对一题 <b>+1 格油</b>。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-amber)' }}>－</span><span>每经过一个服务区消耗 <b>3 格油</b>，撞障碍一次漏 <b>1 格油</b>。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-red)' }}>✕</span><span>油箱降到 <b>0</b> 立即淘汰；坚持到终点就是赢家。</span></li>
           <li><span className="ico" style={{ color: 'var(--r-cyan)' }}>↑</span><span>用 <b>← →</b> 或左右滑动变道，穿过算式答案所在的门可补 1 格油。</span></li>

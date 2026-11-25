@@ -134,15 +134,18 @@ function shuffle<T>(items: T[], rand: () => number): T[] {
   return copy;
 }
 
-function drawQuestions(rand: () => number, answers: RaceAnswerRecord[], bank: RaceQuestion[]): RaceQuestion[] {
+export function drawQuestions(rand: () => number, answers: { id: string }[], bank: RaceQuestion[], count = QUESTIONS_PER_STATION): RaceQuestion[] {
   const seen = new Set(answers.map(answer => answer.id));
   const pool = shuffle(bank.filter(question => !seen.has(question.id)), rand);
   const picked: RaceQuestion[] = [];
   const subjects = [...new Set(bank.map(q=>q.subject))];
-  for (let i = 0; i < QUESTIONS_PER_STATION; i++) {
+  for (let i = 0; i < count; i++) {
     const subject = subjects[(answers.length+i)%subjects.length];
     const available = pool.filter(q => q.subject === subject && !picked.includes(q));
-    picked.push(available.find(q => picked.every(previous => previous.topic !== q.topic)) ?? available[0]);
+    const next = available.find(q => picked.every(previous => previous.topic !== q.topic)) ?? available[0]
+      ?? pool.find(q => !picked.includes(q));
+    if (!next) break;
+    picked.push(next);
   }
   return picked.map(question => {
     const order = shuffle(question.options.map((_,i)=>i), rand);

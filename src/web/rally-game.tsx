@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import semesters from 'virtual:rally-curriculum';
+import { subjectQuestions } from '../shared/study.js';
+import type { StudyCourse } from '../shared/study.js';
+import type { RaceQuestion } from '../shared/race-questions.js';
 import {
-  RALLY_LEVELS, canStartRally, completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress,
+  RACE_QUESTIONS, RALLY_PROGRESS_KEY, RALLY_LEVELS, canStartRally, completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress,
   recordRallyResult, saveRallyProgress,
 } from '../shared/knowledge-rally.js';
 import type { RallyProgress, RallyRun } from '../shared/knowledge-rally.js';
@@ -11,12 +15,36 @@ import './rally.css';
 
 interface Props {
   onExit: () => void;
+  course: StudyCourse;
+  onCourse: (course: StudyCourse) => void;
 }
 
-export function RallyGame({ onExit }: Props) {
+export function RallyGame({ course, onCourse, onExit }: Props) {
+  const sessionProgress = useRef(new Map<string, RallyProgress>());
+  const semester = `${course.grade}-${course.term}`;
+  // The original single-course save belongs to the default mixed course.
+  const subject = course.subject ?? 'mixed';
+  const legacy = semester === '2-1' && subject === 'mixed';
+  const progressKey = legacy ? RALLY_PROGRESS_KEY : `${RALLY_PROGRESS_KEY}.${semester}.${subject}`;
+  const questions = useMemo(() => subjectQuestions(semesters[semester], subject), [semester, subject]);
+  const reviewBank = useMemo(() => legacy ? [...questions, ...RACE_QUESTIONS] : questions, [legacy, questions]);
+  return <RallySession key={progressKey} progressKey={progressKey} course={course} onCourse={onCourse}
+    questions={questions} reviewBank={reviewBank} sessionProgress={sessionProgress.current} onExit={onExit} />;
+}
+
+interface SessionProps extends Props {
+  progressKey: string;
+  questions: RaceQuestion[];
+  reviewBank: RaceQuestion[];
+  sessionProgress: Map<string, RallyProgress>;
+}
+
+function RallySession({ onExit, course, onCourse, questions, reviewBank, progressKey, sessionProgress }: SessionProps) {
   const [progress, setProgress] = useState<RallyProgress>(() => {
+    const cached = sessionProgress.get(progressKey);
+    if (cached) return cached;
     try {
-      return loadRallyProgress(window.localStorage);
+      return loadRallyProgress(window.localStorage, progressKey, reviewBank);
     } catch {
       return createRallyProgress();
     }
@@ -25,21 +53,22 @@ export function RallyGame({ onExit }: Props) {
   const [run, setRun] = useState<RallyRun | null>(null);
 
   useEffect(() => {
+    sessionProgress.set(progressKey, progress);
     try {
-      saveRallyProgress(window.localStorage, progress);
+      saveRallyProgress(window.localStorage, progress, progressKey);
     } catch {
       // Storage can be unavailable in private or embedded browser contexts.
     }
-  }, [progress]);
+  }, [progress, progressKey, sessionProgress]);
 
   const selectVehicle = useCallback((id: string) => {
     setProgress(value => ({ ...value, selectedVehicleId: id }));
   }, []);
 
   const launch = useCallback((levelId: string) => {
-    setRun(createRallyRun(levelId, progress.selectedVehicleId));
+    setRun(createRallyRun(levelId, progress.selectedVehicleId, undefined, questions));
     setScreen('race');
-  }, [progress.selectedVehicleId]);
+  }, [progress.selectedVehicleId, questions]);
 
   const start = useCallback((levelId: string) => {
     if (canStartRally(progress, levelId)) launch(levelId);
@@ -59,7 +88,7 @@ export function RallyGame({ onExit }: Props) {
   }, []);
 
   if (screen === 'review' && progress.pendingReview.length > 0) {
-    return <RallyReview questionIds={progress.pendingReview} onMastered={mastered} onExit={home} />;
+    return <RallyReview questionIds={progress.pendingReview} questionBank={reviewBank} onMastered={mastered} onExit={home} />;
   }
 
   if (screen === 'race' && run) {
@@ -80,6 +109,9 @@ export function RallyGame({ onExit }: Props) {
   }
 
   return <RallyHome
+    course={course}
+    onCourse={onCourse}
+    questions={questions}
     progress={progress}
     onSelectVehicle={selectVehicle}
     onStart={start}

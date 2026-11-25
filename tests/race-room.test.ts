@@ -115,6 +115,25 @@ test('config changes reset ready and bump revision', () => {
   assert.equal(view.players[0]!.ready, false);
 });
 
+test('a subject-only change updates both racers and their first service station', () => {
+  const instance = joinPlayers(2);
+  instance.setConfig({ course: { grade: 2, term: 2 }, startFuel: 10 }, 0);
+  readyAll(instance);
+  instance.setConfig({ course: { grade: 2, term: 2, subject: 'english' } }, 0);
+  assert.equal(instance.view(1, 0).course.subject, 'english');
+  assert.equal(instance.canStart(), false);
+  readyAll(instance);
+  assert.ok(instance.start(0));
+  const seats = instance.presentSeats();
+  for (let i = 0; i < 4000 && seats.some(seat => !instance.view(seat, 0).quiz); i++) instance.tick(0);
+  const bank = questionsFor({ grade: 2, term: 2 }).filter(q => q.subject === 'english');
+  for (const seat of seats) {
+    const question = instance.view(seat, 0).quiz;
+    assert.ok(question);
+    assert.ok(bank.some(q => q.prompt === question.prompt));
+  }
+});
+
 test('lane input moves the car during play', () => {
   const instance = joinPlayers(1);
   readyAll(instance);
