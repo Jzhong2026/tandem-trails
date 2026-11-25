@@ -33,6 +33,7 @@ export class DetectiveRoom {
   private phase: RoomPhase = 'lobby';
   private game: DetectiveGame | null = null;
   private revision = 0;
+  private host: 0 | 1 = 0;
   private activeAt: number;
 
   constructor(code: string, mode: RoomMode, caseId: string, now = Date.now()) {
@@ -44,7 +45,7 @@ export class DetectiveRoom {
   }
 
   get hostSeat(): 0 | 1 {
-    return this.members.findIndex((member) => member !== null) === 1 ? 1 : 0;
+    return this.host;
   }
 
   get freeSeat(): 0 | 1 | null {
@@ -57,6 +58,7 @@ export class DetectiveRoom {
     if (!this.definition || this.phase !== 'lobby' || this.members[seat]) return null;
     if (this.mode === 'solo' && seat !== 0) return null;
     const cleanName = name.trim().slice(0, 8) || (seat === 0 ? '小侦探' : '搭档');
+    if (!this.members[this.host]) this.host = seat;
     const token = randomUUID();
     this.members[seat] = {
       seat,
@@ -142,6 +144,7 @@ export class DetectiveRoom {
   leave(seat: 0 | 1, now: number) {
     if (!this.members[seat]) return false;
     this.members[seat] = null;
+    if (seat === this.host) this.host = this.members[1] ? 1 : 0;
     this.game = null;
     this.phase = 'lobby';
     this.touch(now);
@@ -162,6 +165,18 @@ export class DetectiveRoom {
 
   sync(now: number) {
     this.activeAt = now;
+  }
+
+  releaseExpiredLobbySeats(now: number) {
+    if (this.phase !== 'lobby') return false;
+    let released = false;
+    for (const member of this.presentMembers()) {
+      if (member.disconnectedAt !== null && now - member.disconnectedAt >= RESERVATION_MS) {
+        this.leave(member.seat, now);
+        released = true;
+      }
+    }
+    return released;
   }
 
   expired(now: number) {

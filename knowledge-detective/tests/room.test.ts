@@ -120,6 +120,25 @@ test('disconnect and reconnect preserve the seat and case progress', () => {
   assert.equal(room.reconnect(0, 'wrong-token', 300), false);
 });
 
+test('lobby reservations expire per seat and the remaining host keeps control', () => {
+  const room = new DetectiveRoom('DUO007', 'duo', CASE_ID, 0);
+  const oldToken = room.admit(0, '房主', 0)!;
+  room.admit(1, '搭档', 0);
+  room.disconnect(0, 100);
+  assert.equal(room.releaseExpiredLobbySeats(90_099), false);
+  assert.equal(room.freeSeat, null);
+  assert.equal(room.reconnect(0, oldToken, 90_099), true);
+  room.disconnect(0, 100_000);
+  assert.equal(room.releaseExpiredLobbySeats(190_000), true);
+  assert.equal(room.freeSeat, 0);
+  assert.equal(room.hostSeat, 1);
+  const replacement = room.admit(0, '新搭档', 190_001);
+  assert.ok(replacement && replacement !== oldToken);
+  assert.equal(room.reconnect(0, oldToken, 190_002), false);
+  assert.equal(room.hostSeat, 1);
+  assert.equal(room.view(1, 190_002).players[1]?.connected, true);
+});
+
 test('a third player cannot join a duo room and an unknown case cannot start', () => {
   const room = new DetectiveRoom('DUO006', 'duo', CASE_ID);
   assert.ok(room.admit(0, '小禾', 0));

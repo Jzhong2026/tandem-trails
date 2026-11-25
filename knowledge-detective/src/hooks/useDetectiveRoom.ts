@@ -165,10 +165,10 @@ export function useDetectiveRoom() {
   const act = useCallback(
     (action: RoomAction) =>
       run(async () => {
-        const next = await emit<RoomView>('room:action', { action });
+        const next = await emit<RoomView>('room:action', { action, revision: view?.revision });
         setView(next);
       }),
-    [emit, run],
+    [emit, run, view],
   );
 
   const replay = useCallback(

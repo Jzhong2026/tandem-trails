@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Clipboard, DoorOpen, Link2, LoaderCircle, Play, Search, UserRound, Users } from 'lucide-react';
 import type { CaseMeta, RoomView } from '../../shared/types.js';
+import { inviteLink } from '../lib/invite.js';
 
 interface LobbyProps {
   view: RoomView;
@@ -18,7 +19,8 @@ export function Lobby({ view, seat, caseMeta, connected, busy, onReady, onStart,
   const isHost = seat === view.hostSeat;
   const current = view.players[seat];
   const allReady = view.players.filter((player) => player !== null).length === 2 && view.players.every((player) => player?.ready);
-  const invite = `${window.location.origin}/?room=${view.code}`;
+  const invite = inviteLink(view.code, window.location.origin, import.meta.env.VITE_DETECTIVE_PUBLIC_ORIGIN);
+  const copyText = invite ?? view.code;
 
   return (
     <main className="board-texture min-h-screen px-5 py-8 text-paper sm:px-8">
@@ -45,11 +47,11 @@ export function Lobby({ view, seat, caseMeta, connected, busy, onReady, onStart,
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-paper px-4 text-sm font-semibold text-brand hover:bg-brand-soft"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(invite);
+                  await navigator.clipboard.writeText(copyText);
                   setCopyState('copied');
                 } catch {
                   const field = document.createElement('textarea');
-                  field.value = invite;
+                  field.value = copyText;
                   field.style.position = 'fixed';
                   field.style.opacity = '0';
                   document.body.appendChild(field);
@@ -60,11 +62,15 @@ export function Lobby({ view, seat, caseMeta, connected, busy, onReady, onStart,
                 }
               }}
             >
-              {copyState === 'copied' ? <Check size={16} /> : <Clipboard size={16} />} {copyState === 'copied' ? '已复制邀请' : '复制邀请链接'}
+              {copyState === 'copied' ? <Check size={16} /> : <Clipboard size={16} />} {copyState === 'copied' ? '已复制' : invite ? '复制邀请链接' : '复制房间码'}
             </button>
           </div>
-          <input className="mt-3 h-10 w-full rounded-lg border border-line bg-paper px-3 text-xs text-muted" value={invite} readOnly aria-label="邀请链接" onFocus={(event) => event.currentTarget.select()} />
-          {copyState === 'manual' && <p className="mt-2 text-xs text-clue">浏览器不允许自动复制，请选中上方邀请链接手动复制。</p>}
+          {invite ? (
+            <input className="mt-3 h-10 w-full rounded-lg border border-line bg-paper px-3 text-xs text-muted" value={invite} readOnly aria-label="邀请链接" onFocus={(event) => event.currentTarget.select()} />
+          ) : (
+            <p className="mt-3 text-sm text-muted">请让搭档连接同一局域网，在手机浏览器输入房主电脑的局域网 IP{window.location.port ? ` 和端口 ${window.location.port}` : ''}。打开游戏后选择“加入房间”，输入上方房间码。</p>
+          )}
+          {copyState === 'manual' && <p className="mt-2 text-xs text-clue">请选中上方的{invite ? '邀请链接' : '房间码'}手动复制。</p>}
 
           <div className="mt-7 grid gap-4 sm:grid-cols-2">
             {view.players.map((player, index) => (

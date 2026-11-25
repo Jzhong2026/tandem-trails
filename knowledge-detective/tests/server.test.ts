@@ -162,7 +162,41 @@ test('an invalid resume token does not disturb the existing binding or progress'
   }
 });
 
-test('two sockets receive different private clues in the same duo room', async () => {
+test('an online host can admit a replacement after the lobby reservation deadline', async (t) => {
+  const running = await start();
+  const host = connect(running.url);
+  const guest = connect(running.url);
+  const replacement = connect(running.url);
+  try {
+    const { code } = await request<{ code: string }>(host, 'room:create', {
+      mode: 'duo', caseId: 'campus-broadcast', name: '房主',
+    });
+    const join = { code, name: '搭档' };
+    const { seat, token } = await request<{ seat: number; token: string }>(guest, 'room:join', join);
+    const disconnected = new Promise<void>(resolve => {
+      host.on('room:state', (view: RoomView) => {
+        if (view.players[1]?.connected === false) resolve();
+      });
+    });
+    guest.disconnect();
+    await disconnected;
+    await assert.rejects(request(replacement, 'room:join', join), /room-full/);
+    const realNow = Date.now;
+    t.mock.method(Date, 'now', () => realNow() + 90_000);
+    await assert.rejects(request(replacement, 'room:resume', { code, seat, token }), /invalid-token/);
+    const joined = await request<{ room: RoomView; token: string }>(replacement, 'room:join', join);
+    assert.notEqual(joined.token, token);
+    assert.equal(joined.room.hostSeat, 0);
+    assert.ok(joined.room.players.every(player => player?.connected));
+  } finally {
+    host.disconnect();
+    guest.disconnect();
+    replacement.disconnect();
+    await running.close();
+  }
+});
+
+test('two sockets see private clues and simultaneous answers advance only one step', async () => {
   const running = await start();
   const host = connect(running.url);
   const guest = connect(running.url);
@@ -190,6 +224,23 @@ test('two sockets receive different private clues in the same duo room', async (
     assert.deepEqual(hostView.game?.clues.map((clue) => clue.id), ['broadcast-i-1', 'broadcast-i-2']);
     assert.deepEqual(guestView.game?.clues.map((clue) => clue.id), ['broadcast-a-1', 'broadcast-a-2']);
     assert.ok(hostReady.players[0]);
+    for (const [client, view] of [[host, hostView], [guest, guestView]] as const) {
+      for (const clue of view.game!.clues) {
+        for (const type of ['reveal', 'share']) {
+          await request(client, 'room:action', { action: { type, clueId: clue.id } });
+        }
+      }
+    }
+    const first = await request<RoomView>(host, 'room:sync');
+    const answer = { action: { type: 'answer', option: 1 }, revision: first.revision };
+    const replies = await Promise.all([host, guest].map(client => request<RoomView>(client, 'room:action', answer)));
+    for (const next of replies) {
+      assert.equal(next.revision, first.revision + 1);
+      assert.equal(next.game?.phase, 'deduce');
+      assert.equal(next.game.stepIndex, 1);
+    }
+    const final = await request<RoomView>(guest, 'room:action', { ...answer, revision: replies[1].revision });
+    assert.equal(final.game?.phase, 'accuse');
   } finally {
     host.disconnect();
     guest.disconnect();

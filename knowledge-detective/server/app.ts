@@ -118,6 +118,19 @@ export function createGameServer() {
     }
   };
 
+  // Apply the deadline on incoming requests as well as on the periodic sweep.
+  const findActiveRoom = (code: string) => {
+    const room = rooms.get(code);
+    if (!room) return;
+    const now = Date.now();
+    if (room.expired(now)) {
+      rooms.delete(code);
+      return;
+    }
+    if (room.releaseExpiredLobbySeats(now)) broadcast(room);
+    return room;
+  };
+
   io.on('connection', (socket) => {
     const ip = socket.handshake.address ?? 'unknown';
     const connections = connectionsByIp.get(ip) ?? 0;
@@ -152,7 +165,7 @@ export function createGameServer() {
       if (bindingOf(socket)) return fail(callback, 'already-in-room');
       if (!payload || typeof payload.code !== 'string' || typeof payload.name !== 'string')
         return fail(callback, 'bad-request');
-      const room = rooms.get(payload.code.trim().toUpperCase());
+      const room = findActiveRoom(payload.code.trim().toUpperCase());
       if (!room) return fail(callback, 'room-not-found');
       if (room.mode !== 'duo') return fail(callback, 'solo-room');
       const freeSeat = room.freeSeat;
@@ -168,7 +181,7 @@ export function createGameServer() {
       if (!consumeAction(socket)) return fail(callback, 'rate-limit');
       if (bindingOf(socket) || !payload || typeof payload.code !== 'string' || !Number.isInteger(payload.seat))
         return fail(callback, 'bad-request');
-      const room = rooms.get(payload.code.trim().toUpperCase());
+      const room = findActiveRoom(payload.code.trim().toUpperCase());
       const seat = payload.seat as 0 | 1;
       if (!room || (seat !== 0 && seat !== 1) || typeof payload.token !== 'string')
         return fail(callback, 'bad-request');
@@ -202,6 +215,12 @@ export function createGameServer() {
       if (!consumeAction(socket)) return fail(callback, 'rate-limit');
       const binding = bindingOf(socket);
       if (!binding || !payload || !payload.action) return fail(callback, 'bad-request');
+      const type = payload.action.type;
+      if (type === 'answer' || type === 'repair' || type === 'accuse') {
+        if (!Number.isInteger(payload.revision)) return fail(callback, 'wrong-phase-or-revision');
+        const current = binding.room.view(binding.seat, Date.now())!;
+        if (payload.revision !== current.revision) return respond(callback, current);
+      }
       if (!binding.room.act(binding.seat, payload.action as RoomAction, Date.now()))
         return fail(callback, 'invalid-action');
       broadcast(binding.room);
@@ -249,17 +268,7 @@ export function createGameServer() {
   });
 
   const cleanup = setInterval(() => {
-    for (const [code, room] of rooms) {
-      if (room.expired(Date.now())) {
-        for (const [socketId, binding] of bindings) {
-          if (binding.room !== room) continue;
-          bindings.delete(socketId);
-          seatBindings.delete(seatKey(room, binding.seat));
-          io.to(socketId).emit('room:expired');
-        }
-        rooms.delete(code);
-      }
-    }
+    for (const code of rooms.keys()) findActiveRoom(code);
   }, 30_000);
   cleanup.unref();
 
