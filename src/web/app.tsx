@@ -30,12 +30,14 @@ import { QuestGame } from './quest-game.js';
 import { QuestPreview } from './quest-preview.js';
 import type { TournamentMode } from '../shared/learning.js';
 import { RaceHome } from './race-home.js';
+import { RallyHomeEntry } from './rally-entry.js';
 import { RiverCanvas } from './river-canvas.js';
 import { SubCanvas } from './sub-canvas.js';
 import { SubStage } from './sub-stage.js';
 import { useRoom } from './use-room.js';
 
 const RaceGame = lazy(() => import('./race-game.js').then(module => ({ default: module.RaceGame })));
+const RallyGame = lazy(() => import('./rally-game.js').then(module => ({ default: module.RallyGame })));
 
 type Game = ReturnType<typeof useRoom>;
 const seatName = { left: '左桨', right: '右桨' } as const;
@@ -73,6 +75,19 @@ export function App() {
   const [quest, setQuest] = useState<'solo' | 'coop' | null>(null);
   const [race, setRace] = useState<'create' | 'join' | TournamentMode | null>(() =>
     new URLSearchParams(window.location.search).has('race') ? 'join' : null);
+  const [rally, setRally] = useState(() => new URLSearchParams(window.location.search).has('rally'));
+  const openRally = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('rally', '2');
+    window.history.replaceState({}, '', url);
+    setRally(true);
+  };
+  const closeRally = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('rally');
+    window.history.replaceState({}, '', url);
+    setRally(false);
+  };
   const [code, setCode] = useState(() => normalizeRoomCode(
     new URLSearchParams(window.location.search).get('room') ?? '',
   ).slice(0, ROOM_CODE_LENGTH));
@@ -98,20 +113,24 @@ export function App() {
       {game.error && <p className="notice" role="alert">{game.error}</p>}
       {quest && !game.room
         ? <QuestGame initialMode={quest} onExit={() => setQuest(null)} />
-        : race && !game.room
-        ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame course={course} rememberCourse={rememberCourse} initialAction={race} onExit={() => setRace(null)} /></Suspense>
-        : game.room && game.seat
-        ? !game.room.run
-          ? <RoomLobby room={game.room} seat={game.seat} game={game} />
-          : isMineView(game.room.run)
-            ? <MineStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
-            : isEggView(game.room.run)
-              ? <EggStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
-              : isSubView(game.room.run)
-                ? <SubStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
-                : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
+        : rally && !game.room
+          ? <Suspense fallback={<p role="status">正在打开知识赛车…</p>}><RallyGame onExit={closeRally} /></Suspense>
+          : race && !game.room
+            ? <Suspense fallback={<p role="status">正在打开比赛大厅…</p>}><RaceGame course={course} rememberCourse={rememberCourse} initialAction={race} onExit={() => setRace(null)} /></Suspense>
+            : game.room && game.seat
+              ? !game.room.run
+                ? <RoomLobby room={game.room} seat={game.seat} game={game} />
+                : isMineView(game.room.run)
+                  ? <MineStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+                  : isEggView(game.room.run)
+                    ? <EggStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+                    : isSubView(game.room.run)
+                      ? <SubStage run={game.room.run} phase={game.room.phase} seat={game.seat} game={game} />
+                      : <RiverStage run={game.room.run} room={game.room} seat={game.seat} game={game} />
         : <>
           <RaceHome onPlay={setRace} course={course} change={rememberCourse} />
+          <div className="quest-divider">知识赛车 · 全新单人闯关版</div>
+          <RallyHomeEntry onPlay={openRally} />
           <div className="quest">
             <section className="quest-hero-home">
               <div className="quest-hero-copy">
