@@ -30,6 +30,7 @@
 .rally-app button, .rally-entry button, .rally-game button, .rally-app input, .rally-entry input, .rally-game input { font: inherit; }
 .rally-app button, .rally-entry button, .rally-game button { cursor: pointer; }
 .rally-app button:disabled, .rally-entry button:disabled, .rally-game button:disabled { cursor: not-allowed; opacity: 0.42; }
+.rally-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .rally-app button:focus-visible, .rally-entry button:focus-visible, .rally-game button:focus-visible,
 .rally-app input:focus-visible, .rally-entry input:focus-visible, .rally-game input:focus-visible {
   outline: 3px solid hsl(var(--rally-accent));
@@ -244,6 +245,31 @@
 .rally-vehicle-option[aria-pressed="true"] { color: hsl(var(--rally-accent)); border-color: hsl(var(--rally-accent)); background: hsl(var(--rally-accent) / 0.1); }
 .rally-vehicle-option span { display: block; overflow: hidden; font-size: 0.64rem; text-overflow: ellipsis; white-space: nowrap; }
 .rally-vehicle-option b { display: block; margin-bottom: 4px; font-size: 0.76rem; }
+.rally-garage-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.rally-level-challenges { display: grid; gap: 7px; margin-top: 14px; border-top: 1px solid hsl(var(--rally-line)); padding-top: 13px; }
+.rally-challenge-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+.rally-challenge-head strong { font-size: 0.82rem; }
+.rally-challenge-head span { color: hsl(var(--rally-muted)); font-size: 0.66rem; }
+.rally-challenge { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 1px solid hsl(var(--rally-line)); border-radius: 11px; padding: 8px 10px; background: hsl(var(--rally-bg) / 0.32); }
+.rally-challenge i { color: hsl(var(--rally-muted)); font-style: normal; font-weight: 900; }
+.rally-challenge b { display: block; font-size: 0.74rem; }
+.rally-challenge small { display: block; margin-top: 2px; color: hsl(var(--rally-muted)); font-size: 0.64rem; }
+.rally-challenge em { color: hsl(var(--rally-accent)); font-size: 0.7rem; font-style: normal; font-weight: 900; }
+.rally-challenge.done { border-color: hsl(var(--rally-mint) / 0.45); background: hsl(var(--rally-mint) / 0.08); }
+.rally-challenge.done i, .rally-challenge.done b { color: hsl(var(--rally-mint)); }
+.rally-upgrade-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.rally-upgrade-head strong { font-size: 0.82rem; }
+.rally-upgrade-head span { color: hsl(var(--rally-muted)); font-size: 0.66rem; }
+.rally-upgrades { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 8px; }
+.rally-upgrade { min-width: 0; border: 1px solid hsl(var(--rally-line)); border-radius: 11px; padding: 9px; color: hsl(var(--rally-ink)); background: hsl(var(--rally-bg) / 0.4); text-align: left; }
+.rally-upgrade:hover:not(:disabled) { border-color: hsl(var(--rally-accent) / 0.65); }
+.rally-upgrade > span:first-child { display: block; }
+.rally-upgrade b { display: block; font-size: 0.74rem; }
+.rally-upgrade small { display: block; margin-top: 2px; color: hsl(var(--rally-muted)); font-size: 0.58rem; white-space: nowrap; }
+.rally-upgrade-level { display: flex; gap: 3px; margin-top: 8px; }
+.rally-upgrade-level i { width: 16px; height: 4px; border-radius: 2px; background: hsl(var(--rally-line)); }
+.rally-upgrade-level i.on { background: hsl(var(--rally-accent)); }
+.rally-upgrade em { display: block; margin-top: 6px; color: hsl(var(--rally-accent)); font-size: 0.64rem; font-style: normal; font-weight: 900; }
 .rally-start-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; }
 .rally-start-row > div { color: hsl(var(--rally-muted)); font-size: 0.74rem; line-height: 1.5; }
 .rally-start-row > div b { display: block; color: hsl(var(--rally-ink)); font-size: 0.86rem; }
@@ -300,6 +326,48 @@
 .rally-combo.on { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 .rally-combo b { display: block; color: hsl(var(--rally-accent)); font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1; text-shadow: 0 4px 24px hsl(var(--rally-bg)); }
 .rally-combo span { color: hsl(var(--rally-ink)); font-size: 0.75rem; font-weight: 900; letter-spacing: 0.12em; }
+.rally-task-hud {
+  position: absolute;
+  left: 18px;
+  top: 118px;
+  display: grid;
+  gap: 6px;
+  width: 154px;
+  padding: 10px;
+  border: 1px solid hsl(var(--rally-line) / 0.8);
+  border-radius: 13px;
+  background: hsl(var(--rally-bg) / 0.62);
+  backdrop-filter: blur(9px);
+  pointer-events: none;
+}
+.rally-task-hud-title { color: hsl(var(--rally-muted)); font-size: 0.62rem; font-weight: 900; letter-spacing: 0.12em; }
+.rally-task { display: flex; align-items: center; gap: 7px; color: hsl(var(--rally-muted)); font-size: 0.7rem; }
+.rally-task i { width: 16px; color: hsl(var(--rally-muted)); font-style: normal; font-weight: 900; text-align: center; }
+.rally-task b { display: block; color: hsl(var(--rally-ink) / 0.82); font-size: 0.68rem; }
+.rally-task small { display: block; margin-top: 1px; font-size: 0.6rem; }
+.rally-task.done i, .rally-task.done b { color: hsl(var(--rally-mint)); }
+.rally-zone-warning {
+  position: absolute;
+  left: 50%;
+  top: 148px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid hsl(var(--rally-cyan) / 0.5);
+  border-radius: 999px;
+  padding: 7px 13px;
+  color: hsl(var(--rally-ink));
+  background: hsl(var(--rally-bg) / 0.72);
+  font-size: 0.74rem;
+  font-weight: 900;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+.rally-zone-warning span { color: hsl(var(--rally-muted)); font-size: 0.66rem; font-weight: 700; }
+.rally-zone-warning.sand { border-color: hsl(var(--rally-accent) / 0.65); }
+.rally-zone-warning.boost { border-color: hsl(var(--rally-accent)); color: hsl(var(--rally-accent)); }
 .rally-hazard { position: absolute; left: 50%; top: 102px; transform: translateX(-50%); border: 1px solid hsl(var(--rally-danger) / 0.55); border-radius: 999px; padding: 7px 13px; color: hsl(var(--rally-ink)); background: hsl(var(--rally-bg) / 0.7); font-size: 0.74rem; font-weight: 850; pointer-events: none; backdrop-filter: blur(8px); white-space: nowrap; }
 .rally-countdown { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; pointer-events: none; background: hsl(var(--rally-bg) / 0.2); }
 .rally-countdown b { color: hsl(var(--rally-accent)); font-size: clamp(6rem, 22vw, 13rem); line-height: 1; text-shadow: 0 10px 50px hsl(var(--rally-bg)); animation: rally-count 700ms ease-out; }
@@ -366,6 +434,14 @@
 .rally-result-stat { border: 1px solid hsl(var(--rally-line)); border-radius: 13px; padding: 12px 7px; background: hsl(var(--rally-bg) / 0.35); }
 .rally-result-stat b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .rally-result-stat span { display: block; margin-top: 4px; color: hsl(var(--rally-muted)); font-size: 0.68rem; }
+.rally-result-rewards { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; border: 1px solid hsl(var(--rally-accent) / 0.4); border-radius: 14px; padding: 12px 14px; background: hsl(var(--rally-accent) / 0.08); text-align: left; }
+.rally-result-rewards > div:first-child { flex: none; }
+.rally-result-rewards span { display: block; color: hsl(var(--rally-muted)); font-size: 0.66rem; }
+.rally-result-rewards strong { display: block; margin-top: 2px; color: hsl(var(--rally-accent)); font-size: 1.35rem; }
+.rally-result-tasks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.rally-result-tasks span { border: 1px solid hsl(var(--rally-line)); border-radius: 999px; padding: 5px 8px; color: hsl(var(--rally-muted)); background: hsl(var(--rally-bg) / 0.35); font-size: 0.66rem; }
+.rally-result-tasks span.done { color: hsl(var(--rally-mint)); border-color: hsl(var(--rally-mint) / 0.45); }
+.rally-result-tasks span.new { color: hsl(var(--rally-accent)); border-color: hsl(var(--rally-accent) / 0.55); }
 .rally-result-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
 .rally-review-banner { margin-top: 16px; border: 1px solid hsl(var(--rally-accent) / 0.45); border-radius: 14px; padding: 13px; color: hsl(var(--rally-accent-soft)); background: hsl(var(--rally-accent) / 0.08); font-size: 0.82rem; line-height: 1.6; }
 .rally-pause-card { width: min(430px, 100%); text-align: center; }
@@ -398,6 +474,10 @@
   .rally-stat-icon { width: 32px; height: 32px; }
   .rally-stat strong { font-size: 1.05rem; }
   .rally-panel { padding: 15px; }
+  .rally-garage-badges { justify-content: flex-start; }
+  .rally-upgrades { grid-template-columns: 1fr; }
+  .rally-upgrade { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+  .rally-upgrade-level, .rally-upgrade em { margin-top: 0; }
   .rally-vehicle-preview { height: 190px; }
   .rally-learning-strip { grid-template-columns: 1fr; gap: 6px; }
   .rally-start-row { align-items: stretch; flex-direction: column; }
@@ -412,11 +492,18 @@
   .rally-hud-metric { min-width: 60px; padding: 6px 8px; }
   .rally-hud-metric.score { display: none; }
   .rally-hud-left .rally-btn span { display: none; }
+  .rally-task-hud { left: 10px; top: 116px; width: 128px; padding: 8px; }
+  .rally-task-hud-title { font-size: 0.56rem; }
+  .rally-task small { display: none; }
+  .rally-hazard, .rally-zone-warning { left: 150px; right: 10px; transform: none; max-width: none; width: auto; justify-content: center; overflow: hidden; text-overflow: ellipsis; }
+  .rally-zone-warning { top: 142px; }
   .rally-controls { inset: auto 10px 12px; }
   .rally-control-btn { width: 66px; height: 62px; }
   .rally-options { grid-template-columns: 1fr; gap: 8px; }
   .rally-quiz-card, .rally-result-card, .rally-pause-card { padding: 18px; border-radius: 19px; }
   .rally-result-stats { grid-template-columns: 1fr 1fr; }
+  .rally-result-rewards { align-items: flex-start; flex-direction: column; }
+  .rally-result-tasks { justify-content: flex-start; }
   .rally-feedback-foot { align-items: stretch; flex-direction: column; }
   .rally-feedback-foot .rally-btn { width: 100%; }
 }

@@ -5,9 +5,9 @@ import type { StudyCourse } from '../shared/study.js';
 import type { RaceQuestion } from '../shared/race-questions.js';
 import {
   RACE_QUESTIONS, RALLY_PROGRESS_KEY, RALLY_LEVELS, canStartRally, completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress,
-  recordRallyResult, saveRallyProgress,
+  recordRallyResult, saveRallyProgress, upgradeVehicle,
 } from '../shared/knowledge-rally.js';
-import type { RallyProgress, RallyRun } from '../shared/knowledge-rally.js';
+import type { RallyChallenge, RallyProgress, RallyRun, RallyUpgradeKind } from '../shared/knowledge-rally.js';
 import { RallyHome } from './rally-home.js';
 import { RallyStage } from './rally-stage.js';
 import { RallyReview } from './rally-review.js';
@@ -51,6 +51,9 @@ function RallySession({ onExit, course, onCourse, questions, reviewBank, progres
   });
   const [screen, setScreen] = useState<'home' | 'race' | 'review'>('home');
   const [run, setRun] = useState<RallyRun | null>(null);
+  const [reward, setReward] = useState<{ parts: number; newTasks: RallyChallenge['id'][] }>({ parts: 0, newTasks: [] });
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
 
   useEffect(() => {
     sessionProgress.set(progressKey, progress);
@@ -66,16 +69,26 @@ function RallySession({ onExit, course, onCourse, questions, reviewBank, progres
   }, []);
 
   const launch = useCallback((levelId: string) => {
-    setRun(createRallyRun(levelId, progress.selectedVehicleId, undefined, questions));
+    setReward({ parts: 0, newTasks: [] });
+    setRun(createRallyRun(levelId, progress.selectedVehicleId, undefined, questions, progress.upgrades[progress.selectedVehicleId]));
     setScreen('race');
-  }, [progress.selectedVehicleId, questions]);
+  }, [progress.selectedVehicleId, progress.upgrades, questions]);
+
+  const upgrade = useCallback((kind: RallyUpgradeKind) => {
+    setProgress(value => upgradeVehicle(value, value.selectedVehicleId, kind));
+  }, []);
 
   const start = useCallback((levelId: string) => {
     if (canStartRally(progress, levelId)) launch(levelId);
   }, [progress, launch]);
 
   const record = useCallback((finished: RallyRun) => {
-    setProgress(value => recordRallyResult(value, finished));
+    const current = progressRef.current;
+    const next = recordRallyResult(current, finished);
+    const previousTasks = new Set(current.completedTasks[finished.level.id] ?? []);
+    const completed = next.completedTasks[finished.level.id] ?? [];
+    setReward({ parts: next.parts - current.parts, newTasks: completed.filter((id) => !previousTasks.has(id)) });
+    setProgress(next);
   }, []);
 
   const mastered = useCallback((id: string) => {
@@ -99,6 +112,8 @@ function RallySession({ onExit, course, onCourse, questions, reviewBank, progres
       run={run}
       nextLevelId={nextLevelId}
       canContinue={progress.pendingReview.length === 0}
+      partsEarned={reward.parts}
+      newTasks={reward.newTasks}
       onRecord={record}
       onRetry={() => launch(run.level.id)}
       onNext={launch}
@@ -114,6 +129,7 @@ function RallySession({ onExit, course, onCourse, questions, reviewBank, progres
     questions={questions}
     progress={progress}
     onSelectVehicle={selectVehicle}
+    onUpgrade={upgrade}
     onStart={start}
     onReview={() => setScreen('review')}
     onExit={onExit}

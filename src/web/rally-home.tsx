@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
-  RALLY_LEVELS, RALLY_VEHICLES, canStartRally, levelById, vehicleById,
+  RALLY_LEVELS, RALLY_VEHICLES, UPGRADE_COSTS, applyVehicleUpgrades, canStartRally, levelById, vehicleById,
 } from '../shared/knowledge-rally.js';
-import type { RallyProgress } from '../shared/knowledge-rally.js';
+import type { RallyProgress, RallyUpgradeKind } from '../shared/knowledge-rally.js';
 import type { CourseSubject, StudyCourse } from '../shared/study.js';
 import type { RaceQuestion } from '../shared/race-questions.js';
 import { COURSE_SUBJECTS, GRADE_NAMES } from '../shared/study.js';
@@ -14,15 +14,19 @@ interface Props {
   questions: RaceQuestion[];
   progress: RallyProgress;
   onSelectVehicle: (id: string) => void;
+  onUpgrade: (kind: RallyUpgradeKind) => void;
   onStart: (levelId: string) => void;
   onReview: () => void;
   onExit: () => void;
 }
 
-export function RallyHome({ progress, course, onCourse, questions, onSelectVehicle, onStart, onReview, onExit }: Props) {
+export function RallyHome({ progress, course, onCourse, questions, onSelectVehicle, onUpgrade, onStart, onReview, onExit }: Props) {
   const [levelId, setLevelId] = useState(() => RALLY_LEVELS[Math.min(progress.unlockedLevel - 1, RALLY_LEVELS.length - 1)].id);
   const level = levelById(levelId);
-  const vehicle = vehicleById(progress.selectedVehicleId);
+  const upgrades = progress.upgrades[progress.selectedVehicleId];
+  const baseVehicle = vehicleById(progress.selectedVehicleId);
+  const vehicle = applyVehicleUpgrades(baseVehicle, upgrades);
+  const completedTasks = new Set(progress.completedTasks[level.id] ?? []);
   const totalStars = useMemo(() => Object.values(progress.stars).reduce((sum, stars) => sum + stars, 0), [progress.stars]);
   const mastered = questions.filter(q => progress.masteredQuestions[q.id] > 0).length;
   const selectedSubject = course.subject ?? 'mixed';
@@ -112,15 +116,23 @@ export function RallyHome({ progress, course, onCourse, questions, onSelectVehic
                 </button>;
               })}
             </div>
+            <div className="rally-level-challenges" aria-label={`${level.name}挑战任务`}>
+              <div className="rally-challenge-head"><strong>本关挑战</strong><span>首次完成奖励改装点</span></div>
+              {level.challenges.map((challenge) => <div key={challenge.id} className={`rally-challenge${completedTasks.has(challenge.id) ? ' done' : ''}`}>
+                <i>{completedTasks.has(challenge.id) ? '✓' : '○'}</i>
+                <span><b>{challenge.label}</b><small>{challenge.description}</small></span>
+                <em>+{challenge.reward}</em>
+              </div>)}
+            </div>
           </section>
 
           <section className="rally-panel rally-garage" id="rally-garage" aria-labelledby="rally-garage-title">
             <div className="rally-panel-head">
               <div><h2 id="rally-garage-title">我的车库</h2><p>五款车都已开放，选一辆顺手的去比赛。</p></div>
-              <span className="rally-chip accent">3D 实时预览</span>
+              <div className="rally-garage-badges"><span className="rally-chip mint">改装点 {progress.parts}</span><span className="rally-chip accent">3D 实时预览</span></div>
             </div>
             <div className="rally-vehicle-preview">
-              <RallyVehiclePreview vehicle={vehicle} />
+              <RallyVehiclePreview vehicle={baseVehicle} />
               <div className="rally-vehicle-preview-label"><b>{vehicle.make}</b><span className="rally-chip">{vehicle.kind === 'truck' ? '重型卡车' : vehicle.kind === 'sport' ? '高性能跑车' : '拉力赛车'}</span></div>
               <span className="rally-vehicle-preview-note">实时车辆模型 · 选择即切换</span>
             </div>
@@ -129,6 +141,23 @@ export function RallyHome({ progress, course, onCourse, questions, onSelectVehic
               <div className="rally-stat-row"><span>最高速度</span><div className="rally-meter"><i style={{ width: `${vehicle.speedFactor * 78}%` }} /></div><b>{Math.round(vehicle.speedFactor * 100)}</b></div>
               <div className="rally-stat-row"><span>操控稳定</span><div className="rally-meter"><i style={{ width: `${vehicle.grip * 78}%` }} /></div><b>{Math.round(vehicle.grip * 100)}</b></div>
               <div className="rally-stat-row"><span>氮气强度</span><div className="rally-meter"><i style={{ width: `${vehicle.boostFactor * 78}%` }} /></div><b>{Math.round(vehicle.boostFactor * 100)}</b></div>
+            </div>
+            <div className="rally-upgrade-head"><strong>车辆改装</strong><span>升级会在下一局生效</span></div>
+            <div className="rally-upgrades">
+              {([
+                { kind: 'engine', label: '引擎', detail: '最高速度 +5%' },
+                { kind: 'tires', label: '轮胎', detail: '操控稳定 +10%' },
+                { kind: 'nitro', label: '氮气', detail: '加速强度 +10%' },
+              ] as const).map((item) => {
+                const levelValue = upgrades[item.kind];
+                const maxed = levelValue >= 3;
+                const cost = maxed ? 0 : UPGRADE_COSTS[levelValue];
+                return <button key={item.kind} className="rally-upgrade" disabled={maxed || progress.parts < cost} onClick={() => onUpgrade(item.kind)} aria-label={`升级${item.label}，当前 ${levelValue} 级，${maxed ? '已满级' : `需要 ${cost} 改装点`}`}>
+                  <span><b>{item.label}</b><small>{item.detail}</small></span>
+                  <span className="rally-upgrade-level" aria-label={`${levelValue} 级`}>{[0, 1, 2].map((value) => <i key={value} className={value < levelValue ? 'on' : ''} />)}</span>
+                  <em>{maxed ? '已满级' : `${cost} 点`}</em>
+                </button>;
+              })}
             </div>
             <div className="rally-vehicle-options" aria-label="选择车辆">
               {RALLY_VEHICLES.map(entry => <button

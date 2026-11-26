@@ -53,6 +53,27 @@ export function paintRallyFallback(canvas: HTMLCanvasElement, run: RallyRun, tim
     }
   }
 
+  const zoneColors = { sand: '#d7a45d88', ice: '#9de7ff88', boost: '#ffd95a99' };
+  for (const zone of run.level.zones) {
+    const near = zone.from - run.distance;
+    const far = zone.to - run.distance;
+    if (far < 0 || near > 180) continue;
+    const pNear = Math.max(0, Math.min(1, 1 - near / 180));
+    const pFar = Math.max(0, Math.min(1, 1 - far / 180));
+    const yNear = horizon + pNear * pNear * (height - horizon);
+    const yFar = horizon + pFar * pFar * (height - horizon);
+    const halfNear = roadFar + pNear * (roadNear - roadFar);
+    const halfFar = roadFar + pFar * (roadNear - roadFar);
+    ctx.fillStyle = zoneColors[zone.kind];
+    ctx.beginPath();
+    ctx.moveTo(width / 2 - halfNear, yNear);
+    ctx.lineTo(width / 2 + halfNear, yNear);
+    ctx.lineTo(width / 2 + halfFar, yFar);
+    ctx.lineTo(width / 2 - halfFar, yFar);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   for (const obstacle of run.obstacles) {
     const ahead = obstacle.distance - run.distance;
     if (ahead < 0 || ahead > 180) continue;

@@ -1,20 +1,24 @@
-import type { RallyRun } from '../shared/knowledge-rally.js';
+import { evaluateRallyChallenges } from '../shared/knowledge-rally.js';
+import type { RallyChallenge, RallyRun } from '../shared/knowledge-rally.js';
 
 interface Props {
   run: RallyRun;
   stars: number;
   nextLevelId: string | null;
   canContinue: boolean;
+  partsEarned: number;
+  newTasks: RallyChallenge['id'][];
   onRetry: () => void;
   onNext: (levelId: string) => void;
   onReview: () => void;
   onHome: () => void;
 }
 
-export function RallyResult({ run, stars, nextLevelId, canContinue, onRetry, onNext, onReview, onHome }: Props) {
+export function RallyResult({ run, stars, nextLevelId, canContinue, partsEarned, newTasks, onRetry, onNext, onReview, onHome }: Props) {
   const crashed = run.phase === 'crashed';
   const wrong = run.answers.filter(answer => !answer.firstTryCorrect).length;
   const accuracy = run.answered ? Math.round(run.firstTryCorrect / run.answered * 100) : 0;
+  const completed = new Set(evaluateRallyChallenges(run));
   return <section className="rally-result-card" aria-labelledby="rally-result-title">
     <div className="rally-result-kicker">{crashed ? '车辆需要维修' : 'STAGE COMPLETE'}</div>
     <h2 id="rally-result-title">{crashed ? '休息一下，再出发' : stars === 3 ? '冠军车手，太棒了！' : '完成挑战，继续成长！'}</h2>
@@ -28,6 +32,12 @@ export function RallyResult({ run, stars, nextLevelId, canContinue, onRetry, onN
       <div className="rally-result-stat"><b>{Math.floor(run.elapsedMs / 1000)}s</b><span>驾驶用时</span></div>
       <div className="rally-result-stat"><b>{run.score}</b><span>本局积分</span></div>
     </div>
+    {!crashed && <div className="rally-result-rewards">
+      <div><span>本局改装点</span><strong>+{partsEarned}</strong></div>
+      <div className="rally-result-tasks">{run.level.challenges.map((challenge) => <span key={challenge.id} className={`${completed.has(challenge.id) ? 'done' : ''}${newTasks.includes(challenge.id) ? ' new' : ''}`}>
+        {completed.has(challenge.id) ? '✓' : '○'} {challenge.label}{newTasks.includes(challenge.id) ? ' · 首次' : ''}
+      </span>)}</div>
+    </div>}
     {wrong > 0 && !crashed && <div className="rally-review-banner">有 {wrong} 道题第一次没答对。复盘后就能继续挑战下一站。<button className="rally-btn small" style={{ marginLeft: 10 }} onClick={onReview}>开始错题复盘</button></div>}
     <div className="rally-result-actions">
       <button className="rally-btn primary" onClick={onRetry}>{crashed ? '重新挑战' : '再跑一次'}</button>

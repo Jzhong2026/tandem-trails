@@ -123,6 +123,7 @@ export class RallyScene {
 
     this.buildSky();
     this.buildGroundAndRoad();
+    this.buildZones();
     this.buildRoadFurniture();
     this.buildScenery();
     this.buildMountains();
@@ -208,6 +209,36 @@ export class RallyScene {
       );
       edge.position.set(side * (ROAD_WIDTH / 2 - 0.25), 0.025, -length / 2 + 250);
       this.scene.add(edge);
+    }
+  }
+
+  private buildZones() {
+    const colors = { sand: '#d7a45d', ice: '#9de7ff', boost: '#ffd95a' };
+    for (const zone of this.run.level.zones) {
+      const length = zone.to - zone.from;
+      const material = new THREE.MeshStandardMaterial({
+        color: colors[zone.kind],
+        transparent: true,
+        opacity: zone.kind === 'ice' ? 0.42 : 0.34,
+        roughness: zone.kind === 'ice' ? 0.18 : 0.9,
+        emissive: zone.kind === 'boost' ? colors[zone.kind] : '#000000',
+        emissiveIntensity: zone.kind === 'boost' ? 0.35 : 0,
+        depthWrite: false,
+      });
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_WIDTH, length), material);
+      strip.rotation.x = -Math.PI / 2;
+      strip.position.set(0, 0.045, -(zone.from + zone.to) / 2);
+      this.scene.add(strip);
+      if (zone.kind === 'boost') {
+        for (let distance = zone.from + 12; distance < zone.to; distance += 22) {
+          const chevron = new THREE.Mesh(
+            new THREE.BoxGeometry(ROAD_WIDTH * 0.62, 0.035, 1.4),
+            new THREE.MeshBasicMaterial({ color: colors.boost, transparent: true, opacity: 0.75 }),
+          );
+          chevron.position.set(0, 0.075, -distance);
+          this.scene.add(chevron);
+        }
+      }
     }
   }
 

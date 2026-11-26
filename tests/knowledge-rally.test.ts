@@ -4,9 +4,9 @@ import { questionsFor } from '../src/server/curriculum.js';
 import { COURSE_SUBJECTS, GRADE_NAMES, subjectQuestions } from '../src/shared/study.js';
 import type { CourseSubject } from '../src/shared/study.js';
 import {
-  RALLY_LEVELS, RALLY_VEHICLES, advanceRallyQuiz, answerRally, calculateRallyStars, canStartRally,
-  completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress, recordRallyResult,
-  enterRallyCheckpoint, retryRallyQuestion, saveRallyProgress, steerRally, stepRally,
+  RALLY_LEVELS, RALLY_VEHICLES, advanceRallyQuiz, answerRally, applyVehicleUpgrades, calculateRallyStars, canStartRally,
+  completeRallyReview, createRallyProgress, createRallyRun, evaluateRallyChallenges, loadRallyProgress, recordRallyResult,
+  activeRallyZone, enterRallyCheckpoint, retryRallyQuestion, saveRallyProgress, steerRally, stepRally, upgradeVehicle,
 } from '../src/shared/knowledge-rally.js';
 
 test('every semester and subject supplies two complete stops with valid choices from its own course', () => {
@@ -239,4 +239,163 @@ test('progress persists the selected vehicle and safely ignores damaged saved da
   const sanitized = loadRallyProgress(storage);
   assert.equal(sanitized.selectedVehicleId, 'comet-rally');
   assert.equal(sanitized.unlockedLevel, RALLY_LEVELS.length);
+});
+
+test('every rally track has valid sand, ice, and boost zones outside checkpoints', () => {
+  for (const level of RALLY_LEVELS) {
+    assert.deepEqual(new Set(level.zones.map(zone => zone.kind)), new Set(['sand', 'ice', 'boost']));
+    for (const zone of level.zones) {
+      assert.ok(zone.from > 0 && zone.to > zone.from && zone.to < level.length);
+      assert.ok(level.checkpoints.every(checkpoint => checkpoint < zone.from || checkpoint > zone.to));
+    }
+  }
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  const sand = RALLY_LEVELS[0].zones.find(zone => zone.kind === 'sand')!;
+  run.distance = sand.from + 1;
+  assert.equal(activeRallyZone(run)?.kind, 'sand');
+});
+
+test('sand slows the car and ice reduces lane response', () => {
+  const normal = createRallyRun('campus', 'comet-rally', 7);
+  const sand = createRallyRun('campus', 'comet-rally', 7);
+  for (const run of [normal, sand]) {
+    for (let i = 0; i < 181; i++) stepRally(run, 1 / 60);
+    run.obstacles = [];
+    run.speed = 20;
+  }
+  const sandZone = RALLY_LEVELS[0].zones.find(zone => zone.kind === 'sand')!;
+  sand.distance = sandZone.from + 10;
+  stepRally(normal, 0.1);
+  stepRally(sand, 0.1);
+  assert.ok(sand.distance - (sandZone.from + 10) < normal.distance);
+
+  const ice = createRallyRun('campus', 'comet-rally', 7);
+  for (let i = 0; i < 181; i++) stepRally(ice, 1 / 60);
+  ice.obstacles = [];
+  ice.lane = 0;
+  ice.laneVisual = 2;
+  const iceZone = RALLY_LEVELS[0].zones.find(zone => zone.kind === 'ice')!;
+  ice.checkpointIndex = 1;
+  ice.distance = iceZone.from + 10;
+  stepRally(ice, 0.1);
+  assert.ok(ice.laneVisual > 0.5);
+});
+
+test('a boost strip triggers one free boost and paid nitro counts toward challenges', () => {
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  for (let i = 0; i < 181; i++) stepRally(run, 1 / 60);
+  run.obstacles = [];
+  run.energy = 0;
+  const boost = RALLY_LEVELS[0].zones.find(zone => zone.kind === 'boost')!;
+  run.checkpointIndex = 2;
+  run.distance = boost.from + 1;
+  stepRally(run, 0.1);
+  assert.ok(run.boostMs > 0);
+  assert.equal(run.energy, 0);
+  assert.equal(run.nitroUses, 0);
+
+  run.boostMs = 0;
+  run.boostArmed = true;
+  run.energy = 60;
+  stepRally(run, 0.1, true);
+  assert.equal(run.nitroUses, 1);
+  assert.equal(run.energy, 25);
+});
+
+test('challenge evaluation uses first-try accuracy, collisions, and nitro uses', () => {
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  finishPerfectRun(run);
+  run.nitroUses = 2;
+  assert.deepEqual(evaluateRallyChallenges(run), ['accuracy', 'no-collision', 'nitro']);
+  run.hitObstacles.push(999);
+  run.nitroUses = 1;
+  assert.deepEqual(evaluateRallyChallenges(run), ['accuracy']);
+});
+
+test('vehicle upgrades change stats and spend the documented parts costs', () => {
+  const base = RALLY_VEHICLES[0];
+  const upgraded = applyVehicleUpgrades(base, { engine: 2, tires: 1, nitro: 3 });
+  assert.equal(upgraded.speedFactor, Number((base.speedFactor * 1.1).toFixed(3)));
+  assert.equal(upgraded.grip, Number((base.grip * 1.1).toFixed(3)));
+  assert.equal(upgraded.boostFactor, Number((base.boostFactor * 1.3).toFixed(3)));
+
+  const progress = { ...createRallyProgress(), parts: 20 };
+  const first = upgradeVehicle(progress, base.id, 'engine');
+  assert.equal(first.parts, 17);
+  assert.equal(first.upgrades[base.id].engine, 1);
+  const second = upgradeVehicle(first, base.id, 'engine');
+  assert.equal(second.parts, 11);
+  assert.equal(second.upgrades[base.id].engine, 2);
+  const poor = upgradeVehicle({ ...second, parts: 0 }, base.id, 'engine');
+  assert.equal(poor.parts, 0);
+  assert.equal(poor.upgrades[base.id].engine, 2);
+});
+
+test('finished runs award parts and one-time challenge rewards', () => {
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  finishPerfectRun(run);
+  run.nitroUses = 2;
+  const first = recordRallyResult(createRallyProgress(), run);
+  assert.equal(first.parts, 13);
+  assert.deepEqual(first.completedTasks.campus, ['accuracy', 'no-collision', 'nitro']);
+  const replay = recordRallyResult(first, run);
+  assert.equal(replay.parts, 16);
+  assert.deepEqual(replay.completedTasks.campus, ['accuracy', 'no-collision', 'nitro']);
+});
+
+test('created runs apply upgrades to speed, steering response, and nitro performance', () => {
+  const base = createRallyRun('campus', 'comet-rally', 7);
+  const engine = createRallyRun('campus', 'comet-rally', 7, undefined, { engine: 3, tires: 0, nitro: 0 });
+  const tires = createRallyRun('campus', 'comet-rally', 7, undefined, { engine: 0, tires: 3, nitro: 0 });
+  const nitro = createRallyRun('campus', 'comet-rally', 7, undefined, { engine: 0, tires: 0, nitro: 3 });
+  for (const run of [base, engine, tires, nitro]) {
+    for (let i = 0; i < 181; i++) stepRally(run, 1 / 60);
+    run.obstacles = [];
+  }
+  stepRally(base, 0.5);
+  stepRally(engine, 0.5);
+  assert.ok(engine.distance > base.distance);
+
+  for (const run of [base, tires]) {
+    run.lane = 0;
+    run.laneVisual = 2;
+  }
+  stepRally(base, 0.02);
+  stepRally(tires, 0.02);
+  assert.ok(tires.laneVisual < base.laneVisual);
+
+  for (const run of [base, nitro]) {
+    run.energy = 100;
+    run.boostMs = 0;
+    run.boostArmed = true;
+  }
+  stepRally(base, 0.1, true);
+  stepRally(nitro, 0.1, true);
+  stepRally(base, 0.5);
+  stepRally(nitro, 0.5);
+  assert.ok(nitro.speed > base.speed);
+});
+
+test('legacy version-one saves migrate with empty parts, upgrades, and task records', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+  };
+  values.set('tandem-trails.rally-progress', JSON.stringify({
+    version: 1,
+    unlockedLevel: 2,
+    stars: { campus: 3 },
+    masteredQuestions: { c08: 2 },
+    pendingReview: [],
+    totalScore: 800,
+    selectedVehicleId: 'volvo-fh16',
+  }));
+  const migrated = loadRallyProgress(storage);
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.parts, 0);
+  assert.equal(migrated.upgrades['comet-rally'].engine, 0);
+  assert.deepEqual(migrated.completedTasks, {});
+  assert.equal(migrated.selectedVehicleId, 'volvo-fh16');
+  assert.equal(migrated.stars.campus, 3);
 });

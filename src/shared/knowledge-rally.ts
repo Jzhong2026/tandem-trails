@@ -5,6 +5,29 @@ import type { RaceTheme } from './race-tracks.js';
 
 export type RallyVehicleKind = 'rally' | 'sport' | 'truck';
 export type RallyBiome = 'forest' | 'desert' | 'snow' | 'night';
+export type RallyZoneKind = 'sand' | 'ice' | 'boost';
+export type RallyUpgradeKind = 'engine' | 'tires' | 'nitro';
+
+export interface RallyZone {
+  id: string;
+  from: number;
+  to: number;
+  kind: RallyZoneKind;
+}
+
+export interface VehicleUpgrades {
+  engine: number;
+  tires: number;
+  nitro: number;
+}
+
+export interface RallyChallenge {
+  id: 'accuracy' | 'no-collision' | 'nitro';
+  label: string;
+  description: string;
+  target: number;
+  reward: number;
+}
 
 export interface RallyVehicle {
   id: string;
@@ -45,6 +68,8 @@ export interface RallyLevel {
   accent: string;
   seed: number;
   difficulty: number;
+  zones: RallyZone[];
+  challenges: RallyChallenge[];
 }
 
 export const RALLY_VEHICLES: RallyVehicle[] = [
@@ -75,36 +100,58 @@ export const RALLY_VEHICLES: RallyVehicle[] = [
   },
 ];
 
+export const RALLY_CHALLENGES: RallyChallenge[] = [
+  { id: 'accuracy', label: '精准判断', description: '首次答题正确率达到 80%', target: 0.8, reward: 3 },
+  { id: 'no-collision', label: '平稳驾驶', description: '全程不发生碰撞', target: 0, reward: 4 },
+  { id: 'nitro', label: '氮气节奏', description: '单局使用至少 2 次氮气', target: 2, reward: 3 },
+];
+
+function rallyZones(id: string, length: number, checkpoints: number[]): RallyZone[] {
+  const first = checkpoints[0];
+  const second = checkpoints[1];
+  return [
+    { id: `${id}-sand`, from: Math.round(first * 0.24), to: Math.round(first * 0.42), kind: 'sand' },
+    { id: `${id}-ice`, from: Math.round(first + (second - first) * 0.2), to: Math.round(first + (second - first) * 0.4), kind: 'ice' },
+    { id: `${id}-boost`, from: Math.round(second + (length - second) * 0.58), to: Math.round(second + (length - second) * 0.74), kind: 'boost' },
+  ];
+}
+
 export const RALLY_LEVELS: RallyLevel[] = [
   {
     id: 'campus', name: '晨光校园', region: '第一站 · 绿色山谷', description: '在清爽的晨光里熟悉驾驶，收集第一批知识星星。',
     theme: 'day', biome: 'forest', length: 1500, speed: 25, checkpoints: [500, 1000], obstacleGap: [65, 95], doubleChance: 0.08,
     sky: '#8dc9e7', ground: '#5c8c55', road: '#41464a', fog: '#b8d3d4', sun: '#fff0cc', accent: '#e5b943', seed: 1201, difficulty: 1,
+    zones: rallyZones('campus', 1500, [500, 1000]), challenges: RALLY_CHALLENGES,
   },
   {
     id: 'forest', name: '松林弯道', region: '第二站 · 迷雾松林', description: '穿过松林与晨雾，连续答对可以积攒氮气。',
     theme: 'day', biome: 'forest', length: 1800, speed: 28, checkpoints: [600, 1200], obstacleGap: [58, 88], doubleChance: 0.14,
     sky: '#779fae', ground: '#365b42', road: '#383d41', fog: '#9cb8b8', sun: '#ffe4b0', accent: '#75c9a5', seed: 1202, difficulty: 2,
+    zones: rallyZones('forest', 1800, [600, 1200]), challenges: RALLY_CHALLENGES,
   },
   {
     id: 'desert', name: '落日沙丘', region: '第三站 · 金色荒漠', description: '在落日中穿越沙丘，重卡的稳定性会帮上大忙。',
     theme: 'sunset', biome: 'desert', length: 2100, speed: 30, checkpoints: [700, 1400], obstacleGap: [55, 82], doubleChance: 0.2,
     sky: '#e89869', ground: '#b98850', road: '#4a4642', fog: '#d7a77f', sun: '#ffb56f', accent: '#ffb34c', seed: 1203, difficulty: 3,
+    zones: rallyZones('desert', 2100, [700, 1400]), challenges: RALLY_CHALLENGES,
   },
   {
     id: 'snow', name: '雪岭公路', region: '第四站 · 高山雪线', description: '路面更滑、障碍更多，稳稳驾驶比一味冲刺更重要。',
     theme: 'day', biome: 'snow', length: 2400, speed: 31, checkpoints: [800, 1600], obstacleGap: [52, 78], doubleChance: 0.24,
     sky: '#91b8d1', ground: '#dbe5e6', road: '#454d53', fog: '#d6e3e7', sun: '#f2f6ff', accent: '#75c9e8', seed: 1204, difficulty: 4,
+    zones: rallyZones('snow', 2400, [800, 1600]), challenges: RALLY_CHALLENGES,
   },
   {
     id: 'storm', name: '风暴峡谷', region: '第五站 · 赤岩峡谷', description: '在峡谷风暴里保持连击，把每一次失误都变成经验。',
     theme: 'sunset', biome: 'desert', length: 2700, speed: 33, checkpoints: [900, 1800], obstacleGap: [49, 74], doubleChance: 0.28,
     sky: '#8a7182', ground: '#925a42', road: '#393b40', fog: '#a78b91', sun: '#ffc69e', accent: '#ef8d63', seed: 1205, difficulty: 5,
+    zones: rallyZones('storm', 2700, [900, 1800]), challenges: RALLY_CHALLENGES,
   },
   {
     id: 'final', name: '星夜总决赛', region: '最终站 · 知识之巅', description: '集齐知识能量，在星空下完成最后的冠军挑战。',
     theme: 'night', biome: 'night', length: 3000, speed: 35, checkpoints: [1000, 2000], obstacleGap: [46, 70], doubleChance: 0.32,
     sky: '#111b35', ground: '#182a2d', road: '#262b31', fog: '#273a52', sun: '#a9c6ff', accent: '#9fc8ff', seed: 1206, difficulty: 6,
+    zones: rallyZones('final', 3000, [1000, 2000]), challenges: RALLY_CHALLENGES,
   },
 ];
 
@@ -116,7 +163,7 @@ export interface RallyObstacle {
 }
 
 export type RallyPhase = 'countdown' | 'driving' | 'quiz' | 'finished' | 'crashed';
-export type RallyEventKind = 'count' | 'go' | 'lane' | 'hit' | 'boost' | 'checkpoint' | 'correct' | 'wrong' | 'finish' | 'crash';
+export type RallyEventKind = 'count' | 'go' | 'lane' | 'hit' | 'boost' | 'zone' | 'checkpoint' | 'correct' | 'wrong' | 'finish' | 'crash';
 
 export interface RallyEvent {
   kind: RallyEventKind;
@@ -163,6 +210,7 @@ export interface RallyRun {
   integrity: number;
   boostMs: number;
   boostArmed: boolean;
+  nitroUses: number;
   invulnMs: number;
   combo: number;
   bestCombo: number;
@@ -173,6 +221,7 @@ export interface RallyRun {
   quiz: RallyQuiz | null;
   obstacles: RallyObstacle[];
   hitObstacles: number[];
+  triggeredZones: string[];
   answers: RallyAnswer[];
   events: RallyEvent[];
 }
@@ -183,6 +232,51 @@ export function vehicleById(id: string): RallyVehicle {
 
 export function levelById(id: string): RallyLevel {
   return RALLY_LEVELS.find(level => level.id === id) ?? RALLY_LEVELS[0];
+}
+
+export function activeRallyZone(run: RallyRun): RallyZone | undefined {
+  return run.level.zones.find(zone => run.distance >= zone.from && run.distance <= zone.to);
+}
+
+export const UPGRADE_COSTS = [3, 6, 10] as const;
+
+export function applyVehicleUpgrades(vehicle: RallyVehicle, upgrades?: VehicleUpgrades): RallyVehicle {
+  const engine = Math.max(0, Math.min(3, upgrades?.engine ?? 0));
+  const tires = Math.max(0, Math.min(3, upgrades?.tires ?? 0));
+  const nitro = Math.max(0, Math.min(3, upgrades?.nitro ?? 0));
+  return {
+    ...vehicle,
+    speedFactor: Number((vehicle.speedFactor * (1 + engine * 0.05)).toFixed(3)),
+    grip: Number((vehicle.grip * (1 + tires * 0.1)).toFixed(3)),
+    boostFactor: Number((vehicle.boostFactor * (1 + nitro * 0.1)).toFixed(3)),
+  };
+}
+
+export function upgradeVehicle(progress: RallyProgress, vehicleId: string, kind: RallyUpgradeKind): RallyProgress {
+  const current = progress.upgrades[vehicleId];
+  if (!current || current[kind] >= 3) return progress;
+  const cost = UPGRADE_COSTS[current[kind]];
+  if (progress.parts < cost) return progress;
+  return {
+    ...progress,
+    parts: progress.parts - cost,
+    upgrades: {
+      ...progress.upgrades,
+      [vehicleId]: { ...current, [kind]: current[kind] + 1 },
+    },
+  };
+}
+
+export function evaluateRallyChallenges(run: RallyRun): RallyChallenge['id'][] {
+  if (run.phase !== 'finished') return [];
+  const accuracy = run.answered > 0 ? run.firstTryCorrect / run.answered : 0;
+  return run.level.challenges
+    .filter((challenge) => {
+      if (challenge.id === 'accuracy') return accuracy >= challenge.target;
+      if (challenge.id === 'no-collision') return run.hitObstacles.length === 0;
+      return run.nitroUses >= challenge.target;
+    })
+    .map((challenge) => challenge.id);
 }
 
 export function generateRallyObstacles(level: RallyLevel, seed: number): RallyObstacle[] {
@@ -205,15 +299,15 @@ export function generateRallyObstacles(level: RallyLevel, seed: number): RallyOb
   return obstacles;
 }
 
-export function createRallyRun(levelId: string, vehicleId: string, seed = Math.floor(Math.random() * 1e9), questionBank = RACE_QUESTIONS): RallyRun {
+export function createRallyRun(levelId: string, vehicleId: string, seed = Math.floor(Math.random() * 1e9), questionBank = RACE_QUESTIONS, upgrades?: VehicleUpgrades): RallyRun {
   const level = levelById(levelId);
-  const vehicle = vehicleById(vehicleId);
+  const vehicle = applyVehicleUpgrades(vehicleById(vehicleId), upgrades);
   return {
     level, vehicle, seed, questionBank, phase: 'countdown', countdownMs: 3000, elapsedMs: 0, distance: 0,
     speed: 0, lane: 1, laneVisual: 1, energy: 20, integrity: vehicle.maxIntegrity,
-    boostMs: 0, boostArmed: true, invulnMs: 0, combo: 0, bestCombo: 0, score: 0,
+    boostMs: 0, boostArmed: true, nitroUses: 0, invulnMs: 0, combo: 0, bestCombo: 0, score: 0,
     firstTryCorrect: 0, answered: 0, checkpointIndex: 0, quiz: null,
-    obstacles: generateRallyObstacles(level, seed), hitObstacles: [], answers: [], events: [],
+    obstacles: generateRallyObstacles(level, seed), hitObstacles: [], triggeredZones: [], answers: [], events: [],
   };
 }
 
@@ -226,13 +320,16 @@ export { RACE_QUESTIONS };
 export const RALLY_PROGRESS_KEY = 'tandem-trails.rally-progress';
 
 export interface RallyProgress {
-  version: 1;
+  version: 2;
   unlockedLevel: number;
   stars: Record<string, number>;
   masteredQuestions: Record<string, number>;
   pendingReview: string[];
   totalScore: number;
   selectedVehicleId: string;
+  parts: number;
+  upgrades: Record<string, VehicleUpgrades>;
+  completedTasks: Record<string, RallyChallenge['id'][]>;
 }
 
 export interface RallyStorage {
@@ -242,13 +339,16 @@ export interface RallyStorage {
 
 export function createRallyProgress(): RallyProgress {
   return {
-    version: 1,
+    version: 2,
     unlockedLevel: 1,
     stars: {},
     masteredQuestions: {},
     pendingReview: [],
     totalScore: 0,
     selectedVehicleId: RALLY_VEHICLES[0].id,
+    parts: 0,
+    upgrades: Object.fromEntries(RALLY_VEHICLES.map(vehicle => [vehicle.id, { engine: 0, tires: 0, nitro: 0 }])),
+    completedTasks: {},
   };
 }
 
@@ -273,6 +373,9 @@ export function recordRallyResult(progress: RallyProgress, run: RallyRun): Rally
   const levelIndex = RALLY_LEVELS.findIndex(level => level.id === run.level.id);
   const masteredQuestions = { ...progress.masteredQuestions };
   for (const answer of run.answers) masteredQuestions[answer.id] = (masteredQuestions[answer.id] ?? 0) + 1;
+  const completed = new Set(progress.completedTasks[run.level.id] ?? []);
+  const newTasks = evaluateRallyChallenges(run).filter((id) => !completed.has(id));
+  const taskReward = newTasks.reduce((sum, id) => sum + (run.level.challenges.find((challenge) => challenge.id === id)?.reward ?? 0), 0);
   return {
     ...progress,
     unlockedLevel: Math.max(progress.unlockedLevel, Math.min(RALLY_LEVELS.length, levelIndex + 2)),
@@ -280,6 +383,8 @@ export function recordRallyResult(progress: RallyProgress, run: RallyRun): Rally
     masteredQuestions,
     pendingReview: [...new Set([...progress.pendingReview, ...run.answers.filter(answer => !answer.firstTryCorrect).map(answer => answer.id)])],
     totalScore: progress.totalScore + run.score,
+    parts: progress.parts + stars + taskReward,
+    completedTasks: { ...progress.completedTasks, [run.level.id]: [...completed, ...newTasks] },
   };
 }
 
@@ -323,8 +428,29 @@ export function loadRallyProgress(storage: RallyStorage, key = RALLY_PROGRESS_KE
         if (count) mastered[question.id] = count;
       }
     }
+    const upgrades = Object.fromEntries(RALLY_VEHICLES.map((vehicle) => {
+      const saved = data.upgrades && typeof data.upgrades === 'object'
+        ? (data.upgrades as Record<string, unknown>)[vehicle.id]
+        : null;
+      const values = saved && typeof saved === 'object' ? saved as Record<string, unknown> : {};
+      return [vehicle.id, {
+        engine: safeInteger(values.engine, 0, 0, 3),
+        tires: safeInteger(values.tires, 0, 0, 3),
+        nitro: safeInteger(values.nitro, 0, 0, 3),
+      }];
+    }));
+    const completedTasks: Record<string, RallyChallenge['id'][]> = {};
+    for (const level of RALLY_LEVELS) {
+      const saved = data.completedTasks && typeof data.completedTasks === 'object'
+        ? (data.completedTasks as Record<string, unknown>)[level.id]
+        : null;
+      completedTasks[level.id] = Array.isArray(saved)
+        ? [...new Set(saved.filter((id): id is RallyChallenge['id'] => level.challenges.some((challenge) => challenge.id === id)))]
+        : [];
+      if (completedTasks[level.id].length === 0) delete completedTasks[level.id];
+    }
     return {
-      version: 1,
+      version: 2,
       unlockedLevel: safeInteger(data.unlockedLevel, 1, 1, RALLY_LEVELS.length),
       stars,
       masteredQuestions: mastered,
@@ -335,6 +461,9 @@ export function loadRallyProgress(storage: RallyStorage, key = RALLY_PROGRESS_KE
       selectedVehicleId: typeof data.selectedVehicleId === 'string' && RALLY_VEHICLES.some(vehicle => vehicle.id === data.selectedVehicleId)
         ? data.selectedVehicleId
         : fallback.selectedVehicleId,
+      parts: safeInteger(data.parts, 0, 0, 999_999),
+      upgrades,
+      completedTasks,
     };
   } catch {
     return fallback;
@@ -450,16 +579,25 @@ export function stepRally(run: RallyRun, dt: number, boostHeld = false) {
   if (run.phase !== 'driving') return;
   run.elapsedMs += dt * 1000;
   run.invulnMs = Math.max(0, run.invulnMs - dt * 1000);
-  run.laneVisual += (run.lane - run.laneVisual) * Math.min(1, dt * run.vehicle.grip * 10);
+  const zone = activeRallyZone(run);
+  const grip = zone?.kind === 'ice' ? 0.45 : 1;
+  run.laneVisual += (run.lane - run.laneVisual) * Math.min(1, dt * run.vehicle.grip * grip * 10);
+  if (zone?.kind === 'boost' && !run.triggeredZones.includes(zone.id)) {
+    run.triggeredZones.push(zone.id);
+    run.boostMs = Math.max(run.boostMs, 1400);
+    run.events.push({ kind: 'zone' });
+  }
   if (!boostHeld) run.boostArmed = true;
   if (boostHeld && run.boostArmed && run.energy >= 35 && run.boostMs === 0) {
     run.energy -= 35;
     run.boostMs = 2400;
     run.boostArmed = false;
+    run.nitroUses++;
     run.events.push({ kind: 'boost' });
   }
   run.boostMs = Math.max(0, run.boostMs - dt * 1000);
-  const targetSpeed = run.level.speed * run.vehicle.speedFactor * (run.boostMs > 0 ? 1.5 * run.vehicle.boostFactor : 1);
+  const surfaceSpeed = zone?.kind === 'sand' ? 0.72 : 1;
+  const targetSpeed = run.level.speed * run.vehicle.speedFactor * surfaceSpeed * (run.boostMs > 0 ? 1.5 * run.vehicle.boostFactor : 1);
   run.speed += (targetSpeed - run.speed) * Math.min(1, dt * 1.8);
   run.distance = Math.min(run.level.length, run.distance + run.speed * dt);
 

@@ -99,6 +99,8 @@ test('new rally garage switches to Scania and completes a learning stage with re
   await expect(page.locator('.rally-result-card')).toBeVisible();
   expect(quizzes).toBe(8);
   await expect(page.locator('.rally-result-card')).toContainText('完成挑战');
+  await expect(page.locator('.rally-result-rewards')).toContainText('本局改装点');
+  await expect(page.locator('.rally-result-tasks')).toContainText('平稳驾驶');
   await expect(page.locator('.rally-review-banner')).toContainText('2 道题');
   await expect(page.getByRole('button', { name: '复习后解锁下一站' })).toBeDisabled();
 
@@ -137,6 +139,19 @@ test('mobile garage has no horizontal overflow and touch steering works', async 
   await page.getByRole('button', { name: /出发，开始闯关/ }).click();
   await page.clock.runFor(3400);
   await expect(page.locator('.rally-countdown')).toHaveCount(0);
+  await expect(page.locator('.rally-task-hud')).toBeVisible();
+  await page.clock.runFor(6000);
+  await expect(page.locator('.rally-zone-warning')).toBeVisible();
+  const taskBox = await page.locator('.rally-task-hud').boundingBox();
+  const zoneBox = await page.locator('.rally-zone-warning').boundingBox();
+  expect(taskBox).not.toBeNull();
+  expect(zoneBox).not.toBeNull();
+  expect(
+    zoneBox!.x >= taskBox!.x + taskBox!.width ||
+    zoneBox!.x + zoneBox!.width <= taskBox!.x ||
+    zoneBox!.y >= taskBox!.y + taskBox!.height ||
+    zoneBox!.y + zoneBox!.height <= taskBox!.y,
+  ).toBe(true);
   await expect(page.getByRole('button', { name: '向左变道' })).toBeVisible();
   await expect(page.getByRole('button', { name: '向右变道' })).toBeVisible();
   await page.getByRole('button', { name: '向左变道' }).tap();
@@ -183,6 +198,35 @@ test('home entry tokens resolve and disabled localStorage does not white-screen 
   await page.getByRole('button', { name: '选择 Scania S 520' }).click();
   await expect(page.locator('.rally-vehicle-title h3')).toHaveText('Scania S 520');
   expect(errors).toEqual([]);
+});
+
+test('garage challenges and vehicle upgrades spend and persist parts', async ({ page }) => {
+  await page.addInitScript(() => {
+    const key = 'tandem-trails.rally-progress';
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, JSON.stringify({
+      version: 2,
+      unlockedLevel: 1,
+      stars: {},
+      masteredQuestions: {},
+      pendingReview: [],
+      totalScore: 0,
+      selectedVehicleId: 'comet-rally',
+      parts: 12,
+      upgrades: { 'comet-rally': { engine: 0, tires: 0, nitro: 0 } },
+      completedTasks: {},
+    }));
+  });
+  await page.goto('/?rally=2');
+  await expect(page.getByText('本关挑战', { exact: true })).toBeVisible();
+  await expect(page.getByText('精准判断', { exact: true })).toBeVisible();
+  await expect(page.getByText('改装点 12', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /升级引擎/ }).click();
+  await expect(page.getByText('改装点 9', { exact: true })).toBeVisible();
+  await expect(page.locator('.rally-stat-row b').first()).toHaveText('105');
+  await page.reload();
+  await expect(page.getByText('改装点 9', { exact: true })).toBeVisible();
+  await expect(page.locator('.rally-stat-row b').first()).toHaveText('105');
 });
 
 test('legacy review is preserved when switching courses and returning to the default', async ({ page }) => {

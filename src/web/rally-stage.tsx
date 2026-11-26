@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RallyRun } from '../shared/knowledge-rally.js';
+import type { RallyChallenge, RallyRun, RallyZoneKind } from '../shared/knowledge-rally.js';
 import {
-  advanceRallyQuiz, answerRally, calculateRallyStars, retryRallyQuestion, steerRally, stepRally,
+  activeRallyZone, advanceRallyQuiz, answerRally, calculateRallyStars, retryRallyQuestion, steerRally, stepRally,
 } from '../shared/knowledge-rally.js';
 import type { RaceEventKind } from '../shared/race.js';
 import { RaceAudio } from './race-audio.js';
@@ -14,12 +14,21 @@ interface Props {
   run: RallyRun;
   nextLevelId: string | null;
   canContinue: boolean;
+  partsEarned: number;
+  newTasks: RallyChallenge['id'][];
   onRecord: (run: RallyRun) => void;
   onRetry: () => void;
   onNext: (levelId: string) => void;
   onReview: () => void;
   onHome: () => void;
   onExit: () => void;
+}
+
+interface TaskStatus {
+  id: RallyChallenge['id'];
+  label: string;
+  detail: string;
+  done: boolean;
 }
 
 interface Snapshot {
@@ -34,6 +43,10 @@ interface Snapshot {
   quiz: RallyRun['quiz'];
   hazardLanes: number[];
   hazardDistance: number;
+  zone: RallyZoneKind | null;
+  upcomingZone: RallyZoneKind | null;
+  zoneDistance: number;
+  tasks: TaskStatus[];
 }
 
 function snapshot(run: RallyRun): Snapshot {
@@ -41,21 +54,54 @@ function snapshot(run: RallyRun): Snapshot {
     .filter(obstacle => !run.hitObstacles.includes(obstacle.id) && obstacle.distance >= run.distance - 5)
     .sort((a, b) => a.distance - b.distance)[0];
   const cluster = next ? run.obstacles.filter(obstacle => Math.abs(obstacle.distance - next.distance) < 7) : [];
+  const zone = activeRallyZone(run);
+  const upcomingZone = run.level.zones.find(item => item.from > run.distance);
+  const accuracy = run.answered > 0 ? run.firstTryCorrect / run.answered : 0;
+  const tasks: TaskStatus[] = run.level.challenges.map((challenge) => {
+    if (challenge.id === 'accuracy') return {
+      id: challenge.id,
+      label: challenge.label,
+      detail: `${Math.round(accuracy * 100)}% / ${Math.round(challenge.target * 100)}%`,
+      done: accuracy >= challenge.target,
+    };
+    if (challenge.id === 'no-collision') return {
+      id: challenge.id,
+      label: challenge.label,
+      detail: run.hitObstacles.length === 0 ? '安全' : `${run.hitObstacles.length} 次碰撞`,
+      done: run.hitObstacles.length === 0,
+    };
+    return {
+      id: challenge.id,
+      label: challenge.label,
+      detail: `${run.nitroUses} / ${challenge.target}`,
+      done: run.nitroUses >= challenge.target,
+    };
+  });
   return {
     phase: run.phase, countdownMs: run.countdownMs, distance: run.distance, speed: run.speed,
     energy: run.energy, integrity: run.integrity, combo: run.combo, boostMs: run.boostMs,
     quiz: run.quiz ? { ...run.quiz, questions: [...run.quiz.questions] } : null,
     hazardLanes: [...new Set(cluster.map(obstacle => obstacle.lane))],
     hazardDistance: next ? Math.max(0, next.distance - run.distance) : 999,
+    zone: zone?.kind ?? null,
+    upcomingZone: upcomingZone?.kind ?? null,
+    zoneDistance: zone ? 0 : upcomingZone ? Math.max(0, upcomingZone.from - run.distance) : 999,
+    tasks,
   };
 }
 
 const AUDIO_EVENTS: Record<RallyRun['events'][number]['kind'], RaceEventKind> = {
-  count: 'count', go: 'go', lane: 'lane', hit: 'hit', boost: 'go', checkpoint: 'station',
+  count: 'count', go: 'go', lane: 'lane', hit: 'hit', boost: 'go', zone: 'station', checkpoint: 'station',
   correct: 'correct', wrong: 'wrong', finish: 'finish', crash: 'eliminated',
 };
 
-export function RallyStage({ run, nextLevelId, canContinue, onRecord, onRetry, onNext, onReview, onHome, onExit }: Props) {
+const ZONE_COPY: Record<RallyZoneKind, { name: string; effect: string }> = {
+  sand: { name: '沙地', effect: '车速降低' },
+  ice: { name: '冰面', effect: '转向变缓' },
+  boost: { name: '加速带', effect: '免费氮气' },
+};
+
+export function RallyStage({ run, nextLevelId, canContinue, partsEarned, newTasks, onRecord, onRetry, onNext, onReview, onHome, onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RallyScene | null>(null);
@@ -140,6 +186,7 @@ export function RallyStage({ run, nextLevelId, canContinue, onRecord, onRetry, o
       for (const event of run.events) {
         audio.play(AUDIO_EVENTS[event.kind]);
         if (event.kind === 'boost') showToast('氮气加速！');
+        if (event.kind === 'zone') showToast('加速带！免费氮气');
         if (event.kind === 'hit') showToast('小心障碍！耐久 -1');
         if (event.kind === 'checkpoint') showToast('到达知识补给站');
         if (event.kind === 'go') showToast('出发！');
@@ -221,6 +268,7 @@ export function RallyStage({ run, nextLevelId, canContinue, onRecord, onRetry, o
   const progress = Math.min(100, view.distance / run.level.length * 100);
   const terminal = view.phase === 'finished' || view.phase === 'crashed';
   const countdown = Math.ceil(view.countdownMs / 1000);
+  const warningKind = view.zone ?? view.upcomingZone;
 
   return <div className="rally-game" data-current-lane={run.lane} data-hazard-lanes={view.hazardLanes.join(',')} data-hazard-distance={Math.round(view.hazardDistance)}>
     <canvas ref={canvasRef} className="rally-game-canvas" aria-label={`${run.level.name} 三维赛车场景`} />
@@ -252,7 +300,18 @@ export function RallyStage({ run, nextLevelId, canContinue, onRecord, onRetry, o
     </div>
 
     <div className={`rally-combo${view.combo >= 2 && !terminal ? ' on' : ''}`}><b>{view.combo}×</b><span>知识连击</span></div>
-    {view.phase === 'driving' && view.hazardDistance < 90 && <div className="rally-hazard" role="status">前方 {Math.round(view.hazardDistance)}m · {view.hazardLanes.map(lane => ['左侧', '中间', '右侧'][lane]).join(' / ')} 路障</div>}
+    <div className="rally-task-hud" aria-label="本关挑战任务">
+      <span className="rally-task-hud-title">本关任务</span>
+      {view.tasks.map((task) => <div key={task.id} className={`rally-task${task.done ? ' done' : ''}`}>
+        <i>{task.done ? '✓' : '○'}</i><span><b>{task.label}</b><small>{task.detail}</small></span>
+      </div>)}
+    </div>
+    <span className="rally-sr-only" aria-live="polite">{view.zone ? `进入${ZONE_COPY[view.zone].name}，${ZONE_COPY[view.zone].effect}` : ''}</span>
+    {view.phase === 'driving' && view.hazardDistance < 90 && <div className="rally-hazard">前方 {Math.round(view.hazardDistance)}m · {view.hazardLanes.map(lane => ['左侧', '中间', '右侧'][lane]).join(' / ')} 路障</div>}
+    {view.phase === 'driving' && warningKind && (view.zone || view.zoneDistance < 100) && <div className={`rally-zone-warning ${view.zone ?? ''}`}>
+      {view.zone ? ZONE_COPY[view.zone].name : `${Math.round(view.zoneDistance)}m 后进入${ZONE_COPY[warningKind].name}`}
+      <span>{ZONE_COPY[warningKind].effect}</span>
+    </div>}
     {view.phase === 'countdown' && <div className="rally-countdown"><b key={countdown}>{countdown}</b><span>准备出发</span></div>}
     {toast && !terminal && <div className="rally-toast" role="status">{toast}</div>}
 
@@ -294,6 +353,8 @@ export function RallyStage({ run, nextLevelId, canContinue, onRecord, onRetry, o
         stars={stars}
         nextLevelId={nextLevelId}
         canContinue={canContinue}
+        partsEarned={partsEarned}
+        newTasks={newTasks}
         onRetry={onRetry}
         onNext={onNext}
         onReview={onReview}
