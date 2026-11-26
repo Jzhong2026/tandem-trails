@@ -106,9 +106,15 @@ export const RALLY_CHALLENGES: RallyChallenge[] = [
   { id: 'nitro', label: '氮气节奏', description: '单局使用至少 2 次氮气', target: 2, reward: 3 },
 ];
 
+export const RALLY_ZONE_EFFECTS: Record<RallyZoneKind, { gripFactor: number; speedFactor: number; boostMs: number }> = {
+  sand: { gripFactor: 1, speedFactor: 0.72, boostMs: 0 },
+  ice: { gripFactor: 0.45, speedFactor: 1, boostMs: 0 },
+  boost: { gripFactor: 1, speedFactor: 1, boostMs: 1400 },
+};
+
 function rallyZones(id: string, length: number, checkpoints: number[]): RallyZone[] {
-  const first = checkpoints[0];
-  const second = checkpoints[1];
+  const [first, second] = checkpoints;
+  if (first === undefined || second === undefined) throw new Error(`rally level ${id} needs two checkpoints to place zones`);
   return [
     { id: `${id}-sand`, from: Math.round(first * 0.24), to: Math.round(first * 0.42), kind: 'sand' },
     { id: `${id}-ice`, from: Math.round(first + (second - first) * 0.2), to: Math.round(first + (second - first) * 0.4), kind: 'ice' },
@@ -267,16 +273,24 @@ export function upgradeVehicle(progress: RallyProgress, vehicleId: string, kind:
   };
 }
 
+export function rallyChallengeStatus(run: RallyRun, challenge: RallyChallenge): { done: boolean; detail: string } {
+  switch (challenge.id) {
+    case 'accuracy': {
+      const accuracy = run.answered > 0 ? run.firstTryCorrect / run.answered : 0;
+      return { done: accuracy >= challenge.target, detail: `${Math.round(accuracy * 100)}% / ${Math.round(challenge.target * 100)}%` };
+    }
+    case 'no-collision':
+      return { done: run.hitObstacles.length <= challenge.target, detail: run.hitObstacles.length === 0 ? '安全' : `${run.hitObstacles.length} 次碰撞` };
+    case 'nitro':
+      return { done: run.nitroUses >= challenge.target, detail: `${run.nitroUses} / ${challenge.target}` };
+  }
+}
+
 export function evaluateRallyChallenges(run: RallyRun): RallyChallenge['id'][] {
   if (run.phase !== 'finished') return [];
-  const accuracy = run.answered > 0 ? run.firstTryCorrect / run.answered : 0;
   return run.level.challenges
-    .filter((challenge) => {
-      if (challenge.id === 'accuracy') return accuracy >= challenge.target;
-      if (challenge.id === 'no-collision') return run.hitObstacles.length === 0;
-      return run.nitroUses >= challenge.target;
-    })
-    .map((challenge) => challenge.id);
+    .filter(challenge => rallyChallengeStatus(run, challenge).done)
+    .map(challenge => challenge.id);
 }
 
 export function generateRallyObstacles(level: RallyLevel, seed: number): RallyObstacle[] {
@@ -367,24 +381,37 @@ export function canStartRally(progress: RallyProgress, levelId: string): boolean
   return index === 0 || progress.pendingReview.length === 0;
 }
 
+export interface RallyResultRewards {
+  stars: number;
+  parts: number;
+  newTasks: RallyChallenge['id'][];
+}
+
+export function rallyResultRewards(progress: RallyProgress, run: RallyRun): RallyResultRewards {
+  if (run.phase !== 'finished') return { stars: 0, parts: 0, newTasks: [] };
+  const stars = calculateRallyStars(run);
+  const completed = new Set(progress.completedTasks[run.level.id] ?? []);
+  const newTasks = evaluateRallyChallenges(run).filter(id => !completed.has(id));
+  const taskReward = newTasks.reduce((sum, id) => sum + (run.level.challenges.find(challenge => challenge.id === id)?.reward ?? 0), 0);
+  return { stars, parts: stars + taskReward, newTasks };
+}
+
 export function recordRallyResult(progress: RallyProgress, run: RallyRun): RallyProgress {
   if (run.phase !== 'finished') return progress;
-  const stars = calculateRallyStars(run);
+  const rewards = rallyResultRewards(progress, run);
   const levelIndex = RALLY_LEVELS.findIndex(level => level.id === run.level.id);
   const masteredQuestions = { ...progress.masteredQuestions };
   for (const answer of run.answers) masteredQuestions[answer.id] = (masteredQuestions[answer.id] ?? 0) + 1;
   const completed = new Set(progress.completedTasks[run.level.id] ?? []);
-  const newTasks = evaluateRallyChallenges(run).filter((id) => !completed.has(id));
-  const taskReward = newTasks.reduce((sum, id) => sum + (run.level.challenges.find((challenge) => challenge.id === id)?.reward ?? 0), 0);
   return {
     ...progress,
     unlockedLevel: Math.max(progress.unlockedLevel, Math.min(RALLY_LEVELS.length, levelIndex + 2)),
-    stars: { ...progress.stars, [run.level.id]: Math.max(progress.stars[run.level.id] ?? 0, stars) },
+    stars: { ...progress.stars, [run.level.id]: Math.max(progress.stars[run.level.id] ?? 0, rewards.stars) },
     masteredQuestions,
     pendingReview: [...new Set([...progress.pendingReview, ...run.answers.filter(answer => !answer.firstTryCorrect).map(answer => answer.id)])],
     totalScore: progress.totalScore + run.score,
-    parts: progress.parts + stars + taskReward,
-    completedTasks: { ...progress.completedTasks, [run.level.id]: [...completed, ...newTasks] },
+    parts: progress.parts + rewards.parts,
+    completedTasks: { ...progress.completedTasks, [run.level.id]: [...completed, ...rewards.newTasks] },
   };
 }
 
@@ -417,6 +444,7 @@ export function loadRallyProgress(storage: RallyStorage, key = RALLY_PROGRESS_KE
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object') return fallback;
     const data = value as Record<string, unknown>;
+    if (typeof data.version === 'number' && data.version > 2) return fallback;
     const stars: Record<string, number> = {};
     const mastered: Record<string, number> = {};
     if (data.stars && typeof data.stars === 'object') {
@@ -580,11 +608,11 @@ export function stepRally(run: RallyRun, dt: number, boostHeld = false) {
   run.elapsedMs += dt * 1000;
   run.invulnMs = Math.max(0, run.invulnMs - dt * 1000);
   const zone = activeRallyZone(run);
-  const grip = zone?.kind === 'ice' ? 0.45 : 1;
-  run.laneVisual += (run.lane - run.laneVisual) * Math.min(1, dt * run.vehicle.grip * grip * 10);
-  if (zone?.kind === 'boost' && !run.triggeredZones.includes(zone.id)) {
+  const zoneEffect = zone ? RALLY_ZONE_EFFECTS[zone.kind] : undefined;
+  run.laneVisual += (run.lane - run.laneVisual) * Math.min(1, dt * run.vehicle.grip * (zoneEffect?.gripFactor ?? 1) * 10);
+  if (zone && zoneEffect && zoneEffect.boostMs > 0 && !run.triggeredZones.includes(zone.id)) {
     run.triggeredZones.push(zone.id);
-    run.boostMs = Math.max(run.boostMs, 1400);
+    run.boostMs = Math.max(run.boostMs, zoneEffect.boostMs);
     run.events.push({ kind: 'zone' });
   }
   if (!boostHeld) run.boostArmed = true;
@@ -596,8 +624,7 @@ export function stepRally(run: RallyRun, dt: number, boostHeld = false) {
     run.events.push({ kind: 'boost' });
   }
   run.boostMs = Math.max(0, run.boostMs - dt * 1000);
-  const surfaceSpeed = zone?.kind === 'sand' ? 0.72 : 1;
-  const targetSpeed = run.level.speed * run.vehicle.speedFactor * surfaceSpeed * (run.boostMs > 0 ? 1.5 * run.vehicle.boostFactor : 1);
+  const targetSpeed = run.level.speed * run.vehicle.speedFactor * (zoneEffect?.speedFactor ?? 1) * (run.boostMs > 0 ? 1.5 * run.vehicle.boostFactor : 1);
   run.speed += (targetSpeed - run.speed) * Math.min(1, dt * 1.8);
   run.distance = Math.min(run.level.length, run.distance + run.speed * dt);
 

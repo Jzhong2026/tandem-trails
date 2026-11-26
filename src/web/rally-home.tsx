@@ -2,11 +2,18 @@ import { useMemo, useState } from 'react';
 import {
   RALLY_LEVELS, RALLY_VEHICLES, UPGRADE_COSTS, applyVehicleUpgrades, canStartRally, levelById, vehicleById,
 } from '../shared/knowledge-rally.js';
-import type { RallyProgress, RallyUpgradeKind } from '../shared/knowledge-rally.js';
+import type { RallyProgress, RallyUpgradeKind, VehicleUpgrades } from '../shared/knowledge-rally.js';
 import type { CourseSubject, StudyCourse } from '../shared/study.js';
 import type { RaceQuestion } from '../shared/race-questions.js';
 import { COURSE_SUBJECTS, GRADE_NAMES } from '../shared/study.js';
 import { RallyVehiclePreview } from './rally-preview.js';
+
+const MAX_UPGRADES: VehicleUpgrades = { engine: 3, tires: 3, nitro: 3 };
+const STAT_MAX = {
+  speedFactor: Math.max(...RALLY_VEHICLES.map(vehicle => applyVehicleUpgrades(vehicle, MAX_UPGRADES).speedFactor)),
+  grip: Math.max(...RALLY_VEHICLES.map(vehicle => applyVehicleUpgrades(vehicle, MAX_UPGRADES).grip)),
+  boostFactor: Math.max(...RALLY_VEHICLES.map(vehicle => applyVehicleUpgrades(vehicle, MAX_UPGRADES).boostFactor)),
+};
 
 interface Props {
   course: StudyCourse;
@@ -138,9 +145,9 @@ export function RallyHome({ progress, course, onCourse, questions, onSelectVehic
             </div>
             <div className="rally-vehicle-title"><div><h3>{vehicle.name}</h3><p>{vehicle.tagline}</p></div><span className="rally-chip mint">{vehicle.maxIntegrity} 格耐久</span></div>
             <div className="rally-vehicle-stats">
-              <div className="rally-stat-row"><span>最高速度</span><div className="rally-meter"><i style={{ width: `${vehicle.speedFactor * 78}%` }} /></div><b>{Math.round(vehicle.speedFactor * 100)}</b></div>
-              <div className="rally-stat-row"><span>操控稳定</span><div className="rally-meter"><i style={{ width: `${vehicle.grip * 78}%` }} /></div><b>{Math.round(vehicle.grip * 100)}</b></div>
-              <div className="rally-stat-row"><span>氮气强度</span><div className="rally-meter"><i style={{ width: `${vehicle.boostFactor * 78}%` }} /></div><b>{Math.round(vehicle.boostFactor * 100)}</b></div>
+              <div className="rally-stat-row"><span>最高速度</span><div className="rally-meter"><i style={{ width: `${vehicle.speedFactor / STAT_MAX.speedFactor * 100}%` }} /></div><b>{Math.round(vehicle.speedFactor * 100)}</b></div>
+              <div className="rally-stat-row"><span>操控稳定</span><div className="rally-meter"><i style={{ width: `${vehicle.grip / STAT_MAX.grip * 100}%` }} /></div><b>{Math.round(vehicle.grip * 100)}</b></div>
+              <div className="rally-stat-row"><span>氮气强度</span><div className="rally-meter"><i style={{ width: `${vehicle.boostFactor / STAT_MAX.boostFactor * 100}%` }} /></div><b>{Math.round(vehicle.boostFactor * 100)}</b></div>
             </div>
             <div className="rally-upgrade-head"><strong>车辆改装</strong><span>升级会在下一局生效</span></div>
             <div className="rally-upgrades">

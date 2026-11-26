@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RallyChallenge, RallyRun, RallyZoneKind } from '../shared/knowledge-rally.js';
 import {
-  activeRallyZone, advanceRallyQuiz, answerRally, calculateRallyStars, retryRallyQuestion, steerRally, stepRally,
+  activeRallyZone, advanceRallyQuiz, answerRally, calculateRallyStars, rallyChallengeStatus, retryRallyQuestion, steerRally, stepRally,
 } from '../shared/knowledge-rally.js';
 import type { RaceEventKind } from '../shared/race.js';
 import { RaceAudio } from './race-audio.js';
@@ -56,27 +56,11 @@ function snapshot(run: RallyRun): Snapshot {
   const cluster = next ? run.obstacles.filter(obstacle => Math.abs(obstacle.distance - next.distance) < 7) : [];
   const zone = activeRallyZone(run);
   const upcomingZone = run.level.zones.find(item => item.from > run.distance);
-  const accuracy = run.answered > 0 ? run.firstTryCorrect / run.answered : 0;
-  const tasks: TaskStatus[] = run.level.challenges.map((challenge) => {
-    if (challenge.id === 'accuracy') return {
-      id: challenge.id,
-      label: challenge.label,
-      detail: `${Math.round(accuracy * 100)}% / ${Math.round(challenge.target * 100)}%`,
-      done: accuracy >= challenge.target,
-    };
-    if (challenge.id === 'no-collision') return {
-      id: challenge.id,
-      label: challenge.label,
-      detail: run.hitObstacles.length === 0 ? '安全' : `${run.hitObstacles.length} 次碰撞`,
-      done: run.hitObstacles.length === 0,
-    };
-    return {
-      id: challenge.id,
-      label: challenge.label,
-      detail: `${run.nitroUses} / ${challenge.target}`,
-      done: run.nitroUses >= challenge.target,
-    };
-  });
+  const tasks: TaskStatus[] = run.level.challenges.map(challenge => ({
+    id: challenge.id,
+    label: challenge.label,
+    ...rallyChallengeStatus(run, challenge),
+  }));
   return {
     phase: run.phase, countdownMs: run.countdownMs, distance: run.distance, speed: run.speed,
     energy: run.energy, integrity: run.integrity, combo: run.combo, boostMs: run.boostMs,

@@ -100,7 +100,15 @@ test('new rally garage switches to Scania and completes a learning stage with re
   expect(quizzes).toBe(8);
   await expect(page.locator('.rally-result-card')).toContainText('完成挑战');
   await expect(page.locator('.rally-result-rewards')).toContainText('本局改装点');
-  await expect(page.locator('.rally-result-tasks')).toContainText('平稳驾驶');
+  // 8 题中前 2 题首答错误 → 75% < 80%，精准判断必不达成；未按过氮气 → 氮气节奏必不达成。
+  await expect(page.locator('.rally-result-tasks span', { hasText: '精准判断' })).not.toHaveClass(/done/);
+  await expect(page.locator('.rally-result-tasks span', { hasText: '氮气节奏' })).not.toHaveClass(/done/);
+  const smooth = page.locator('.rally-result-tasks span', { hasText: '平稳驾驶' });
+  const smoothDone = await smooth.evaluate(element => element.classList.contains('done'));
+  if (smoothDone) await expect(smooth).toHaveClass(/new/);
+  // 75% 首答率固定 2 星；改装点 = 2 星 + 平稳驾驶首次奖励 4（若达成）。
+  const partsEarned = Number((await page.locator('.rally-result-rewards strong').textContent())?.replace('+', ''));
+  expect(partsEarned).toBe(2 + (smoothDone ? 4 : 0));
   await expect(page.locator('.rally-review-banner')).toContainText('2 道题');
   await expect(page.getByRole('button', { name: '复习后解锁下一站' })).toBeDisabled();
 
@@ -115,6 +123,7 @@ test('new rally garage switches to Scania and completes a learning stage with re
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tandem-trails.rally-progress.3-1.english') ?? '{}'));
   expect(saved.unlockedLevel).toBe(2);
   expect(saved.selectedVehicleId).toBe('scania-s500');
+  expect(saved.parts).toBe(partsEarned);
   await page.getByLabel('年级与学期').selectOption('2-2');
   await expect(page.getByRole('button', { name: /松林弯道/ })).toBeDisabled();
   await page.getByLabel('年级与学期').selectOption('3-1');
@@ -201,6 +210,7 @@ test('home entry tokens resolve and disabled localStorage does not white-screen 
 });
 
 test('garage challenges and vehicle upgrades spend and persist parts', async ({ page }) => {
+  await useFastCanvas(page);
   await page.addInitScript(() => {
     const key = 'tandem-trails.rally-progress';
     if (localStorage.getItem(key)) return;

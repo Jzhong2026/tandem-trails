@@ -5,7 +5,8 @@ import { COURSE_SUBJECTS, GRADE_NAMES, subjectQuestions } from '../src/shared/st
 import type { CourseSubject } from '../src/shared/study.js';
 import {
   RALLY_LEVELS, RALLY_VEHICLES, advanceRallyQuiz, answerRally, applyVehicleUpgrades, calculateRallyStars, canStartRally,
-  completeRallyReview, createRallyProgress, createRallyRun, evaluateRallyChallenges, loadRallyProgress, recordRallyResult,
+  completeRallyReview, createRallyProgress, createRallyRun, evaluateRallyChallenges, loadRallyProgress, rallyChallengeStatus,
+  rallyResultRewards, recordRallyResult,
   activeRallyZone, enterRallyCheckpoint, retryRallyQuestion, saveRallyProgress, steerRally, stepRally, upgradeVehicle,
 } from '../src/shared/knowledge-rally.js';
 
@@ -398,4 +399,37 @@ test('legacy version-one saves migrate with empty parts, upgrades, and task reco
   assert.deepEqual(migrated.completedTasks, {});
   assert.equal(migrated.selectedVehicleId, 'volvo-fh16');
   assert.equal(migrated.stars.campus, 3);
+});
+
+test('rallyResultRewards reports stars, parts and first-time tasks once', () => {
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  finishPerfectRun(run);
+  run.nitroUses = 2;
+  const progress = createRallyProgress();
+  assert.deepEqual(rallyResultRewards(progress, run), { stars: 3, parts: 13, newTasks: ['accuracy', 'no-collision', 'nitro'] });
+  const recorded = recordRallyResult(progress, run);
+  assert.deepEqual(rallyResultRewards(recorded, run), { stars: 3, parts: 3, newTasks: [] });
+  run.phase = 'crashed';
+  assert.deepEqual(rallyResultRewards(recorded, run), { stars: 0, parts: 0, newTasks: [] });
+});
+
+test('challenge status exposes live detail and uses the collision target', () => {
+  const run = createRallyRun('campus', 'comet-rally', 7);
+  const [accuracy, smooth, nitro] = run.level.challenges;
+  assert.deepEqual(rallyChallengeStatus(run, accuracy), { done: false, detail: '0% / 80%' });
+  assert.deepEqual(rallyChallengeStatus(run, smooth), { done: true, detail: '安全' });
+  run.hitObstacles.push(1);
+  assert.deepEqual(rallyChallengeStatus(run, smooth), { done: false, detail: '1 次碰撞' });
+  run.nitroUses = 2;
+  assert.deepEqual(rallyChallengeStatus(run, nitro), { done: true, detail: '2 / 2' });
+});
+
+test('saves from a newer progress version fall back instead of downgrading', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+  };
+  values.set('tandem-trails.rally-progress', JSON.stringify({ version: 3, unlockedLevel: 6, parts: 500, totalScore: 999 }));
+  assert.deepEqual(loadRallyProgress(storage), createRallyProgress());
 });

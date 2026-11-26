@@ -5,7 +5,7 @@ import type { StudyCourse } from '../shared/study.js';
 import type { RaceQuestion } from '../shared/race-questions.js';
 import {
   RACE_QUESTIONS, RALLY_PROGRESS_KEY, RALLY_LEVELS, canStartRally, completeRallyReview, createRallyProgress, createRallyRun, loadRallyProgress,
-  recordRallyResult, saveRallyProgress, upgradeVehicle,
+  rallyResultRewards, recordRallyResult, saveRallyProgress, upgradeVehicle,
 } from '../shared/knowledge-rally.js';
 import type { RallyChallenge, RallyProgress, RallyRun, RallyUpgradeKind } from '../shared/knowledge-rally.js';
 import { RallyHome } from './rally-home.js';
@@ -84,11 +84,9 @@ function RallySession({ onExit, course, onCourse, questions, reviewBank, progres
 
   const record = useCallback((finished: RallyRun) => {
     const current = progressRef.current;
-    const next = recordRallyResult(current, finished);
-    const previousTasks = new Set(current.completedTasks[finished.level.id] ?? []);
-    const completed = next.completedTasks[finished.level.id] ?? [];
-    setReward({ parts: next.parts - current.parts, newTasks: completed.filter((id) => !previousTasks.has(id)) });
-    setProgress(next);
+    const rewards = rallyResultRewards(current, finished);
+    setReward({ parts: rewards.parts, newTasks: rewards.newTasks });
+    setProgress(recordRallyResult(current, finished));
   }, []);
 
   const mastered = useCallback((id: string) => {
